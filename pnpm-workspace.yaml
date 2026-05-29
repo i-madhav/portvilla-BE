@@ -1,0 +1,7 @@
+allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': true
+  bcrypt: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - nodemailer@8.0.10
