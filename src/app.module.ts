@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
+import { ConfigModule } from '@nestjs/config';
 
+import { MongooseDatabaseModule } from './shared/mongoose/mongoose.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { ProfileModule } from './profile/profile.module';
 import { ParserModule } from './parser/parser.module';
 
 @Module({
@@ -15,15 +16,11 @@ import { ParserModule } from './parser/parser.module';
     ConfigModule.forRoot({ isGlobal: true }),
 
     // ─── Database ────────────────────────────────────────────────────────
-    MongooseModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        uri: config.getOrThrow<string>('MONGODB_URI'),
-      }),
-    }),
+    MongooseDatabaseModule,
 
     // ─── Feature modules ─────────────────────────────────────────────────
     AuthModule,
+    ProfileModule,
     ParserModule,
   ],
   controllers: [AppController],

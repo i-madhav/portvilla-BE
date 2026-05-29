@@ -6,6 +6,19 @@ import { AppModule } from './app.module';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
+  // ─── CORS ───────────────────────────────────────────────────────────────
+  // In development all origins are permitted so local frontends (any port)
+  // can reach the API without configuration. In all other environments the
+  // origin list must be explicitly set via the CORS_ORIGINS env variable
+  // (comma-separated, e.g. "https://app.portvilla.com,https://admin.portvilla.com").
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  app.enableCors({
+    origin: isDevelopment ? '*' : (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean),
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: !isDevelopment, // credentials + wildcard origin is rejected by browsers
+  });
+
   // ─── Global prefix ──────────────────────────────────────────────────────
   app.setGlobalPrefix('api/v1');
 
