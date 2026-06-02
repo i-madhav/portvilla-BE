@@ -1,37 +1,181 @@
 import { applyDecorators, HttpStatus } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
+
 import { ProfileResponseDto } from '../dto/profile-response.dto';
+import { ProfileDataResponseDto } from '../dto/profile-data-response.dto';
+import { CreateProfileDto } from '../dto/create-profile.dto';
+import { UpdateProfileDto } from '../dto/update-profile.dto';
 
-// ─── Endpoint decorators ─────────────────────────────────────────────────────
-// All Swagger documentation for the profile module lives here.
-// Import these composed decorators into the controller — never annotate
-// controller methods with @ApiOperation / @ApiResponse directly.
+// ─── Shared ───────────────────────────────────────────────────────────────────
 
-/**
- * GET /profile/me
- * Returns the authenticated user's public profile.
- */
+const Bearer = (): MethodDecorator => applyDecorators(ApiBearerAuth());
+
+const ProfileNotFound = (): MethodDecorator =>
+  applyDecorators(
+    ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Profile not found.' }),
+  );
+
+const Unauthorized = (): MethodDecorator =>
+  applyDecorators(
+    ApiResponse({
+      status: HttpStatus.UNAUTHORIZED,
+      description: 'Access token is missing, invalid, or expired.',
+    }),
+  );
+
+// ─── GET /profile/me (existing auth user record endpoint) ────────────────────
+
 export const GetMeEndpoint = (): MethodDecorator =>
   applyDecorators(
-    ApiBearerAuth(),
+    Bearer(),
     ApiOperation({
       summary: 'Get current user profile',
       description:
         'Returns the public profile of the currently authenticated user. ' +
-        'Requires a valid Bearer access token in the `Authorization` header. ' +
-        'Sensitive fields (`passwordHash`, `refreshTokenHash`) are never included in the response.',
+        'Sensitive fields (`passwordHash`, `refreshTokenHash`) are never included.',
     }),
     ApiResponse({
       status: HttpStatus.OK,
       description: 'Profile retrieved successfully.',
       type: ProfileResponseDto,
     }),
-    ApiResponse({
-      status: HttpStatus.UNAUTHORIZED,
-      description: 'Access token is missing, invalid, or expired.',
-    }),
+    Unauthorized(),
     ApiResponse({
       status: HttpStatus.NOT_FOUND,
       description: 'The user associated with this token no longer exists.',
     }),
+  );
+
+// ─── POST /profiles ───────────────────────────────────────────────────────────
+
+export const CreateProfileEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({
+      summary: 'Create candidate profile (onboarding)',
+      description:
+        'Creates the profile document for the authenticated user. ' +
+        'Can only be called once — returns 409 if a profile already exists or the username is taken.',
+    }),
+    ApiBody({ type: CreateProfileDto }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description: 'Profile created successfully.',
+      type: ProfileDataResponseDto,
+    }),
+    ApiResponse({
+      status: HttpStatus.CONFLICT,
+      description: 'Profile already exists or username is taken/reserved.',
+    }),
+    ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Validation error.' }),
+    Unauthorized(),
+  );
+
+// ─── GET /profiles/me ────────────────────────────────────────────────────────
+
+export const GetProfileDataEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({
+      summary: 'Get own candidate profile data',
+      description: 'Returns the full profile record for the authenticated user. The raw AI API key is never returned; `aiSettings.apiKeyConfigured` indicates whether one is saved.',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Profile data retrieved successfully.',
+      type: ProfileDataResponseDto,
+    }),
+    ProfileNotFound(),
+    Unauthorized(),
+  );
+
+// ─── PATCH /profiles/me ──────────────────────────────────────────────────────
+
+export const UpdateProfileEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({
+      summary: 'Update profile (any combination of sections)',
+      description:
+        'Send only the sections you want to update. Each section is independently optional. ' +
+        'Within a section, individual fields are also optional. ' +
+        'When `visibility.visibility` is `PROTECTED`, `visibility.protectedPassword` is required.',
+    }),
+    ApiBody({ type: UpdateProfileDto }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Profile updated.',
+      type: ProfileDataResponseDto,
+    }),
+    ApiResponse({
+      status: HttpStatus.BAD_REQUEST,
+      description: 'Validation error (e.g. PROTECTED visibility without a password).',
+    }),
+    ProfileNotFound(),
+    Unauthorized(),
+  );
+
+// ─── POST /profiles/me/resume ─────────────────────────────────────────────────
+
+export const UploadResumeEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({ summary: 'Upload resume PDF (max 5 MB)' }),
+    ApiConsumes('multipart/form-data'),
+    ApiBody({
+      schema: {
+        type: 'object',
+        required: ['resume'],
+        properties: { resume: { type: 'string', format: 'binary' } },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Resume uploaded. URL saved to professional.resume.url.',
+      type: ProfileDataResponseDto,
+    }),
+    ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'File must be PDF, max 5 MB.' }),
+    ProfileNotFound(),
+    Unauthorized(),
+  );
+
+// ─── POST /profiles/me/profile-image ─────────────────────────────────────────
+
+export const UploadProfileImageEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({ summary: 'Upload profile image (JPEG / PNG / WebP, max 2 MB)' }),
+    ApiConsumes('multipart/form-data'),
+    ApiBody({
+      schema: {
+        type: 'object',
+        required: ['profileImage'],
+        properties: { profileImage: { type: 'string', format: 'binary' } },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Profile image uploaded. URL saved to basic.profileImage.',
+      type: ProfileDataResponseDto,
+    }),
+    ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'File must be JPEG/PNG/WebP, max 2 MB.' }),
+    ProfileNotFound(),
+    Unauthorized(),
+  );
+
+// ─── DELETE /profiles/me ─────────────────────────────────────────────────────
+
+export const DeleteProfileEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({ summary: 'Delete own profile and all associated data' }),
+    ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Profile deleted.' }),
+    ProfileNotFound(),
+    Unauthorized(),
   );
