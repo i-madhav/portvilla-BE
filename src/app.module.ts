@@ -5,6 +5,7 @@ import { MongooseDatabaseModule } from './shared/mongoose/mongoose.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 import { ProfileModule } from './profile/profile.module';
 import { ParserModule } from './parser/parser.module';
 
@@ -20,6 +21,7 @@ import { ParserModule } from './parser/parser.module';
 
     // ─── Feature modules ─────────────────────────────────────────────────
     AuthModule,
+    UsersModule,
     ProfileModule,
     ParserModule,
   ],

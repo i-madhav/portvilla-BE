@@ -6,9 +6,6 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
-import { USER_REPOSITORY } from '../auth/domain/user-repository.interface';
-import type { IUserRepository } from '../auth/domain/user-repository.interface';
-
 import { PROFILE_REPOSITORY } from './domain/profile-repository.interface';
 import type { IProfileRepository } from './domain/profile-repository.interface';
 import {
@@ -19,7 +16,6 @@ import {
   type AiSettingsSection,
 } from './domain/profile.interface';
 
-import { ProfileResponseDto } from './dto/profile-response.dto';
 import { ProfileDataResponseDto } from './dto/profile-data-response.dto';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -36,24 +32,8 @@ const RESERVED_USERNAMES = new Set([
 @Injectable()
 export class ProfileService {
   constructor(
-    @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
     @Inject(PROFILE_REPOSITORY) private readonly profileRepository: IProfileRepository,
   ) {}
-
-  // ─── Existing endpoint (auth user record) ─────────────────────────────────
-
-  async getMe(userId: string): Promise<ProfileResponseDto> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundException('User not found.');
-    return {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      isEmailVerified: user.isEmailVerified,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
-  }
 
   // ─── Profile CRUD ──────────────────────────────────────────────────────────
 

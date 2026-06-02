@@ -21,14 +21,12 @@ import type { JwtPayload } from '../auth/interfaces/jwt.interface';
 import { ProfileService } from './profile.service';
 import { ProfileOwnerGuard, type ProfileRequest } from './guards/profile-owner.guard';
 
-import { ProfileResponseDto } from './dto/profile-response.dto';
 import { ProfileDataResponseDto } from './dto/profile-data-response.dto';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { resumeUploadConfig, profileImageUploadConfig } from './upload/upload.config';
 
 import {
-  GetMeEndpoint,
   CreateProfileEndpoint,
   GetProfileDataEndpoint,
   UploadResumeEndpoint,
@@ -52,16 +50,6 @@ const ProfileFromGuard = createParamDecorator(
 @Controller()
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
-
-  // ─── Auth user record (unchanged) ─────────────────────────────────────────
-
-  @Get('profile/me')
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard)
-  @GetMeEndpoint()
-  getMe(@CurrentUser() user: JwtPayload): Promise<ProfileResponseDto> {
-    return this.profileService.getMe(user.sub);
-  }
 
   // ─── Profile CRUD ──────────────────────────────────────────────────────────
 

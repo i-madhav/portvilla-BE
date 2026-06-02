@@ -7,7 +7,6 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 
-import { ProfileResponseDto } from '../dto/profile-response.dto';
 import { ProfileDataResponseDto } from '../dto/profile-data-response.dto';
 import { CreateProfileDto } from '../dto/create-profile.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
@@ -26,29 +25,6 @@ const Unauthorized = (): MethodDecorator =>
     ApiResponse({
       status: HttpStatus.UNAUTHORIZED,
       description: 'Access token is missing, invalid, or expired.',
-    }),
-  );
-
-// ─── GET /profile/me (existing auth user record endpoint) ────────────────────
-
-export const GetMeEndpoint = (): MethodDecorator =>
-  applyDecorators(
-    Bearer(),
-    ApiOperation({
-      summary: 'Get current user profile',
-      description:
-        'Returns the public profile of the currently authenticated user. ' +
-        'Sensitive fields (`passwordHash`, `refreshTokenHash`) are never included.',
-    }),
-    ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Profile retrieved successfully.',
-      type: ProfileResponseDto,
-    }),
-    Unauthorized(),
-    ApiResponse({
-      status: HttpStatus.NOT_FOUND,
-      description: 'The user associated with this token no longer exists.',
     }),
   );
 
