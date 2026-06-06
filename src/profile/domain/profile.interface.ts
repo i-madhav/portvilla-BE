@@ -10,9 +10,34 @@ export enum ProfileVisibility {
 
 export enum LlmProvider {
   OPENAI = 'openai',
+  ANTHROPIC = 'anthropic',
   GROQ = 'groq',
+  DEEPSEEK = 'deepseek',
   OLLAMA = 'ollama',
   CUSTOM = 'custom',
+}
+
+export enum AgentTone {
+  FORMAL = 'formal',
+  BALANCED = 'balanced',
+  CASUAL = 'casual',
+}
+
+export enum AgentVerbosity {
+  CONCISE = 'concise',
+  DETAILED = 'detailed',
+}
+
+export enum AgentTechnicalDepth {
+  HIGH = 'high',
+  MEDIUM = 'medium',
+  LOW = 'low',
+}
+
+export enum AgentSpeakingSpeed {
+  SLOW = 'slow',
+  NORMAL = 'normal',
+  FAST = 'fast',
 }
 
 // ─── Section Types ────────────────────────────────────────────────────────────
@@ -112,6 +137,15 @@ export interface AiSettingsSection {
   baseUrl: string | null;
 }
 
+export interface AgentPersonaSection {
+  agentName: string;
+  tone: AgentTone;
+  verbosity: AgentVerbosity;
+  technicalDepth: AgentTechnicalDepth;
+  speakingSpeed: AgentSpeakingSpeed;
+  voiceId: string | null;
+}
+
 // ─── Schema Shape ─────────────────────────────────────────────────────────────
 
 export interface IProfile {
@@ -124,6 +158,7 @@ export interface IProfile {
   professional: ProfessionalSection;
   external: ExternalSection;
   aiSettings: AiSettingsSection;
+  agentPersona: AgentPersonaSection;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -144,6 +179,7 @@ export interface IProfileRecord {
   professional: ProfessionalSection;
   external: ExternalSection;
   aiSettings: AiSettingsSection;
+  agentPersona: AgentPersonaSection;
   createdAt: Date;
   updatedAt: Date;
 }

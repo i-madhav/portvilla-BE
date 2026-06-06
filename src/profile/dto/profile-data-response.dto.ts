@@ -1,12 +1,32 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { ProfileVisibility, LlmProvider } from '../domain/profile.interface';
+import { ProfileVisibility, LlmProvider, AgentTone, AgentVerbosity, AgentTechnicalDepth, AgentSpeakingSpeed } from '../domain/profile.interface';
 import type {
   BasicSection,
   ProfessionalSection,
   ExternalSection,
   IProfileRecord,
 } from '../domain/profile.interface';
+
+export class AgentPersonaResponseDto {
+  @ApiProperty({ example: 'Alex' })
+  agentName!: string;
+
+  @ApiProperty({ enum: AgentTone })
+  tone!: AgentTone;
+
+  @ApiProperty({ enum: AgentVerbosity })
+  verbosity!: AgentVerbosity;
+
+  @ApiProperty({ enum: AgentTechnicalDepth })
+  technicalDepth!: AgentTechnicalDepth;
+
+  @ApiProperty({ enum: AgentSpeakingSpeed })
+  speakingSpeed!: AgentSpeakingSpeed;
+
+  @ApiProperty({ nullable: true })
+  voiceId!: string | null;
+}
 
 /** AI settings shape returned to the client — raw API key is never exposed. */
 export class AiSettingsResponseDto {
@@ -49,6 +69,9 @@ export class ProfileDataResponseDto {
   @ApiProperty({ type: AiSettingsResponseDto })
   aiSettings!: AiSettingsResponseDto;
 
+  @ApiProperty({ type: AgentPersonaResponseDto })
+  agentPersona!: AgentPersonaResponseDto;
+
   @ApiProperty()
   createdAt!: Date;
 
@@ -70,6 +93,7 @@ export class ProfileDataResponseDto {
       model: record.aiSettings.model,
       baseUrl: record.aiSettings.baseUrl,
     };
+    dto.agentPersona = record.agentPersona;
     dto.createdAt = record.createdAt;
     dto.updatedAt = record.updatedAt;
     return dto;

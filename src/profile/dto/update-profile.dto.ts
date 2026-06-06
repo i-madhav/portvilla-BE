@@ -6,6 +6,7 @@ import { UpdateBasicDto } from './update-basic.dto';
 import { UpdateProfessionalDto } from './update-professional.dto';
 import { UpdateExternalDto } from './update-external.dto';
 import { UpdateAiSettingsDto } from './update-ai-settings.dto';
+import { UpdateAgentPersonaDto } from './update-agent-persona.dto';
 import { UpdateVisibilityDto } from './update-visibility.dto';
 
 export class UpdateProfileDto {
@@ -32,6 +33,12 @@ export class UpdateProfileDto {
   @Type(() => UpdateAiSettingsDto)
   @IsOptional()
   aiSettings?: UpdateAiSettingsDto;
+
+  @ApiPropertyOptional({ type: UpdateAgentPersonaDto })
+  @ValidateNested()
+  @Type(() => UpdateAgentPersonaDto)
+  @IsOptional()
+  agentPersona?: UpdateAgentPersonaDto;
 
   @ApiPropertyOptional({ type: UpdateVisibilityDto })
   @ValidateNested()

@@ -85,6 +85,7 @@ export class ProfileRepository implements IProfileRepository {
       professional: doc.professional,
       external: doc.external,
       aiSettings: doc.aiSettings,
+      agentPersona: doc.agentPersona,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };

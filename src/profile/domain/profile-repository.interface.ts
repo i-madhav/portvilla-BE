@@ -5,6 +5,7 @@ import type {
   ProfessionalSection,
   ExternalSection,
   AiSettingsSection,
+  AgentPersonaSection,
 } from './profile.interface';
 
 // ─── Injection Token ──────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ export interface CreateProfileData {
   professional: ProfessionalSection;
   external: ExternalSection;
   aiSettings: AiSettingsSection;
+  agentPersona: AgentPersonaSection;
 }
 
 // ─── Repository Interface ─────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { SchemaTypes, Types } from 'mongoose';
 
-import { ProfileVisibility, LlmProvider } from '../../domain/profile.interface';
+import { ProfileVisibility, LlmProvider, AgentTone, AgentVerbosity, AgentTechnicalDepth, AgentSpeakingSpeed } from '../../domain/profile.interface';
 import type {
   IProfile,
   EducationEntry,
@@ -16,6 +16,7 @@ import type {
   ProfessionalSection,
   ExternalSection,
   AiSettingsSection,
+  AgentPersonaSection,
 } from '../../domain/profile.interface';
 
 // ─── Sub-document Schemas ────────────────────────────────────────────────────
@@ -247,6 +248,28 @@ class AiSettingsSubDoc implements AiSettingsSection {
 }
 const AiSettingsSchema = SchemaFactory.createForClass(AiSettingsSubDoc);
 
+@Schema({ _id: false })
+class AgentPersonaSubDoc implements AgentPersonaSection {
+  @Prop({ required: true, default: 'Alex' })
+  agentName!: string;
+
+  @Prop({ required: true, enum: AgentTone, default: AgentTone.BALANCED })
+  tone!: AgentTone;
+
+  @Prop({ required: true, enum: AgentVerbosity, default: AgentVerbosity.CONCISE })
+  verbosity!: AgentVerbosity;
+
+  @Prop({ required: true, enum: AgentTechnicalDepth, default: AgentTechnicalDepth.MEDIUM })
+  technicalDepth!: AgentTechnicalDepth;
+
+  @Prop({ required: true, enum: AgentSpeakingSpeed, default: AgentSpeakingSpeed.NORMAL })
+  speakingSpeed!: AgentSpeakingSpeed;
+
+  @Prop({ type: String, default: null })
+  voiceId!: string | null;
+}
+const AgentPersonaSchema = SchemaFactory.createForClass(AgentPersonaSubDoc);
+
 // ─── Top-level Profile Schema ─────────────────────────────────────────────────
 
 @Schema({ timestamps: true, collection: 'profiles' })
@@ -305,6 +328,19 @@ class Profile implements IProfile {
     default: () => ({ provider: LlmProvider.OPENAI, apiKey: null, model: null, baseUrl: null }),
   })
   aiSettings!: AiSettingsSection;
+
+  @Prop({
+    type: AgentPersonaSchema,
+    default: () => ({
+      agentName: 'Alex',
+      tone: AgentTone.BALANCED,
+      verbosity: AgentVerbosity.CONCISE,
+      technicalDepth: AgentTechnicalDepth.MEDIUM,
+      speakingSpeed: AgentSpeakingSpeed.NORMAL,
+      voiceId: null,
+    }),
+  })
+  agentPersona!: AgentPersonaSection;
 
   // Provided by { timestamps: true }
   createdAt!: Date;

@@ -10,10 +10,15 @@ import { PROFILE_REPOSITORY } from './domain/profile-repository.interface';
 import type { IProfileRepository } from './domain/profile-repository.interface';
 import {
   ProfileVisibility,
+  AgentTone,
+  AgentVerbosity,
+  AgentTechnicalDepth,
+  AgentSpeakingSpeed,
   type BasicSection,
   type ProfessionalSection,
   type ExternalSection,
   type AiSettingsSection,
+  type AgentPersonaSection,
 } from './domain/profile.interface';
 
 import { ProfileDataResponseDto } from './dto/profile-data-response.dto';
@@ -64,6 +69,7 @@ export class ProfileService {
       professional: this.buildProfessional(dto.professional),
       external: this.buildExternal(dto.external),
       aiSettings: this.buildAiSettings(dto.aiSettings),
+      agentPersona: this.buildAgentPersona(),    
     });
 
     return ProfileDataResponseDto.fromRecord(record);
@@ -78,7 +84,7 @@ export class ProfileService {
   async updateProfile(profileId: string, dto: UpdateProfileDto): Promise<ProfileDataResponseDto> {
     const fields: Record<string, unknown> = {};
 
-    const { basic, professional, external, aiSettings, visibility } = dto;
+    const { basic, professional, external, aiSettings, agentPersona, visibility } = dto;
 
     if (basic) {
       if (basic.name !== undefined) fields['basic.name'] = basic.name;
@@ -117,6 +123,15 @@ export class ProfileService {
       if (aiSettings.apiKey !== undefined) fields['aiSettings.apiKey'] = aiSettings.apiKey ?? null;
       if (aiSettings.model !== undefined) fields['aiSettings.model'] = aiSettings.model ?? null;
       if (aiSettings.baseUrl !== undefined) fields['aiSettings.baseUrl'] = aiSettings.baseUrl ?? null;
+    }
+
+    if (agentPersona) {
+      if (agentPersona.agentName !== undefined) fields['agentPersona.agentName'] = agentPersona.agentName;
+      if (agentPersona.tone !== undefined) fields['agentPersona.tone'] = agentPersona.tone;
+      if (agentPersona.verbosity !== undefined) fields['agentPersona.verbosity'] = agentPersona.verbosity;
+      if (agentPersona.technicalDepth !== undefined) fields['agentPersona.technicalDepth'] = agentPersona.technicalDepth;
+      if (agentPersona.speakingSpeed !== undefined) fields['agentPersona.speakingSpeed'] = agentPersona.speakingSpeed;
+      if (agentPersona.voiceId !== undefined) fields['agentPersona.voiceId'] = agentPersona.voiceId ?? null;
     }
 
     if (visibility) {
@@ -198,6 +213,17 @@ export class ProfileService {
       apiKey: dto?.apiKey ?? null,
       model: dto?.model ?? null,
       baseUrl: dto?.baseUrl ?? null,
+    };
+  }
+
+  private buildAgentPersona(): AgentPersonaSection {
+    return {
+      agentName: 'Alex',
+      tone: AgentTone.BALANCED,
+      verbosity: AgentVerbosity.CONCISE,
+      technicalDepth: AgentTechnicalDepth.MEDIUM,
+      speakingSpeed: AgentSpeakingSpeed.NORMAL,
+      voiceId: null,
     };
   }
 }
