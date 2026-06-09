@@ -61,7 +61,7 @@ export class ProfileRepository implements IProfileRepository {
 
   async update(profileId: string, fields: Record<string, unknown>): Promise<IProfileRecord> {
     const doc = await this.profileModel
-      .findByIdAndUpdate(profileId, { $set: fields }, { new: true, runValidators: true })
+      .findByIdAndUpdate(profileId, { $set: fields }, { returnDocument: 'after', runValidators: true })
       .exec();
 
     if (!doc) throw new Error(`Profile ${profileId} not found during update`);

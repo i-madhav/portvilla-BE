@@ -23,7 +23,7 @@ export class OtpRepository implements IOtpRepository {
       .findOneAndReplace(
         { email: data.email.toLowerCase(), purpose: data.purpose },
         { ...data, email: data.email.toLowerCase() },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: 'after' },
       )
       .exec();
 

@@ -349,6 +349,3 @@ class Profile implements IProfile {
 
 export const ProfileSchema = SchemaFactory.createForClass(Profile);
 
-// Compound indexes
-ProfileSchema.index({ userId: 1 }, { unique: true });
-ProfileSchema.index({ username: 1 }, { unique: true });
