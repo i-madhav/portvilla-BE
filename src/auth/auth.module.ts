@@ -13,17 +13,16 @@ import { OTP_REPOSITORY } from './domain/otp-repository.interface';
 
 import {
   UserRepository,
-  USER_MODEL,
 } from './infrastructure/repository/user.repository';
 import {
-  OtpRepository,
-  OTP_MODEL,
+  OtpRepository
 } from './infrastructure/repository/otp.repository';
 
 import { UserSchema } from './infrastructure/scehma/user.schema';
 import { OtpSchema } from './infrastructure/scehma/otp.schema';
 
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { DB_MODEL_REGISTRY, DbModelToken } from '../shared/mongoose/modelRegistry/mongoose.modelRegistry';
 
 @Module({
   imports: [
@@ -32,8 +31,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     // in AuthService supplies its own secret and expiry explicitly.
     JwtModule.register({}),
     MongooseModule.forFeature([
-      { name: USER_MODEL, schema: UserSchema },
-      { name: OTP_MODEL, schema: OtpSchema },
+      { name: DB_MODEL_REGISTRY.USER.MODEL_TOKEN as DbModelToken, schema: UserSchema },
+      { name: DB_MODEL_REGISTRY.OTP.MODEL_TOKEN as DbModelToken, schema: OtpSchema },
     ]),
     MailModule,
   ],

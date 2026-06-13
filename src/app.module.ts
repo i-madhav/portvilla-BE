@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ProfileModule } from './profile/profile.module';
 import { ParserModule } from './parser/parser.module';
+import { SessionModule } from './session/session.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ParserModule } from './parser/parser.module';
     UsersModule,
     ProfileModule,
     ParserModule,
+    SessionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

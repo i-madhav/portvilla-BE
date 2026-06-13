@@ -7,13 +7,13 @@ import {
   UpsertOtpData,
 } from '../../domain/otp-repository.interface';
 import { IOtpRecord, OtpDocument, OtpPurpose } from '../../interfaces/otp.interface';
+import { DB_MODEL_REGISTRY, DbModelToken } from '../../../shared/mongoose/modelRegistry/mongoose.modelRegistry';
 
-export const OTP_MODEL = 'Otp';
 
 @Injectable()
 export class OtpRepository implements IOtpRepository {
   constructor(
-    @InjectModel(OTP_MODEL) private readonly otpModel: Model<OtpDocument>,
+    @InjectModel(DB_MODEL_REGISTRY.OTP.MODEL_TOKEN as DbModelToken) private readonly otpModel: Model<OtpDocument>,
   ) {}
 
   async upsert(data: UpsertOtpData): Promise<IOtpRecord> {
