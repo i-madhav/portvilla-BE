@@ -1,103 +1,41 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { SchemaTypes, Types } from 'mongoose';
 
-import { ProfileVisibility, LlmProvider, AgentTone, AgentVerbosity, AgentTechnicalDepth, AgentSpeakingSpeed } from '../../domain/profile.interface';
+import {
+  ProfileVisibility,
+  EntityType,
+  WorkType,
+  TimelineCategory,
+  CapabilityProficiency,
+  TestimonialRelationship,
+  ContentType,
+  LlmProvider,
+  AgentTone,
+  AgentVerbosity,
+  AgentTechnicalDepth,
+  AgentSpeakingSpeed,
+} from '../../domain/profile.interface';
 import type {
   IProfile,
-  EducationEntry,
-  ExperienceEntry,
-  CertificationEntry,
-  CurrentPosition,
-  ResumeData,
-  ResearchPaperEntry,
-  ProjectEntry,
-  OtherProfileEntry,
-  BasicSection,
-  ProfessionalSection,
-  ExternalSection,
+  IdentitySection,
+  WorkEntry,
+  TimelineEntry,
+  CapabilityEntry,
+  OfferingEntry,
+  MetricEntry,
+  TestimonialEntry,
+  TeamMemberEntry,
+  MediaEntry,
+  ContentEntry,
+  SocialSection,
   AiSettingsSection,
   AgentPersonaSection,
 } from '../../domain/profile.interface';
 
-// ─── Sub-document Schemas ────────────────────────────────────────────────────
-// These are not registered as models — they only exist as nested schemas
-// inside the top-level Profile document.
+// ─── Sub-document Schemas ─────────────────────────────────────────────────────
 
 @Schema({ _id: false })
-class EducationSubDoc implements EducationEntry {
-  @Prop({ required: true })
-  institution!: string;
-
-  @Prop({ required: true })
-  degree!: string;
-
-  @Prop({ required: true })
-  field!: string;
-
-  @Prop({ required: true })
-  startDate!: string;
-
-  @Prop({ type: String, default: null })
-  endDate!: string | null;
-
-  @Prop({ default: '' })
-  description!: string;
-}
-const EducationSchema = SchemaFactory.createForClass(EducationSubDoc);
-
-@Schema({ _id: false })
-class CurrentPositionSubDoc implements CurrentPosition {
-  @Prop({ required: true })
-  title!: string;
-
-  @Prop({ required: true })
-  company!: string;
-
-  @Prop({ required: true })
-  startDate!: string;
-
-  @Prop({ default: '' })
-  description!: string;
-}
-const CurrentPositionSchema = SchemaFactory.createForClass(CurrentPositionSubDoc);
-
-@Schema({ _id: false })
-class ExperienceSubDoc implements ExperienceEntry {
-  @Prop({ required: true })
-  title!: string;
-
-  @Prop({ required: true })
-  company!: string;
-
-  @Prop({ required: true })
-  startDate!: string;
-
-  @Prop({ type: String, default: null })
-  endDate!: string | null;
-
-  @Prop({ default: '' })
-  description!: string;
-}
-const ExperienceSchema = SchemaFactory.createForClass(ExperienceSubDoc);
-
-@Schema({ _id: false })
-class CertificationSubDoc implements CertificationEntry {
-  @Prop({ required: true })
-  name!: string;
-
-  @Prop({ required: true })
-  issuer!: string;
-
-  @Prop({ required: true })
-  date!: string;
-
-  @Prop({ type: String, default: null })
-  url!: string | null;
-}
-const CertificationSchema = SchemaFactory.createForClass(CertificationSubDoc);
-
-@Schema({ _id: false })
-class ResumeSubDoc implements ResumeData {
+class ResumeSubDoc {
   @Prop({ type: String, default: null })
   url!: string | null;
 
@@ -107,130 +45,357 @@ class ResumeSubDoc implements ResumeData {
 const ResumeSchema = SchemaFactory.createForClass(ResumeSubDoc);
 
 @Schema({ _id: false })
-class BasicSubDoc implements BasicSection {
+class IdentitySubDoc implements IdentitySection {
+  @Prop({ required: true, enum: EntityType, default: EntityType.INDIVIDUAL })
+  entityType!: EntityType;
+
   @Prop({ required: true })
   name!: string;
 
-  @Prop({ required: true })
-  title!: string;
+  @Prop({ type: String, default: null })
+  tagline!: string | null;
 
   @Prop({ type: String, default: null })
-  profileImage!: string | null;
+  bio!: string | null;
 
-  @Prop({ default: '' })
-  introduction!: string;
+  @Prop({ type: String, default: null })
+  about!: string | null;
 
-  @Prop({ default: '' })
-  aboutMe!: string;
-}
-const BasicSchema = SchemaFactory.createForClass(BasicSubDoc);
+  @Prop({ type: String, default: null })
+  primaryImage!: string | null;
 
-@Schema({ _id: false })
-class ProfessionalSubDoc implements ProfessionalSection {
+  @Prop({ type: String, default: null })
+  coverImage!: string | null;
+
+  @Prop({ type: String, default: null })
+  location!: string | null;
+
+  @Prop({ type: String, default: null })
+  foundedOrBorn!: string | null;
+
+  @Prop({ type: String, default: null })
+  industry!: string | null;
+
+  @Prop({ type: String, default: null })
+  availability!: string | null;
+
   @Prop({ type: ResumeSchema, default: () => ({ url: null, parsedText: null }) })
-  resume!: ResumeData;
-
-  @Prop({ type: [EducationSchema], default: [] })
-  education!: EducationEntry[];
-
-  @Prop({ type: CurrentPositionSchema, default: null })
-  currentPosition!: CurrentPosition | null;
-
-  @Prop({ type: [ExperienceSchema], default: [] })
-  experience!: ExperienceEntry[];
-
-  @Prop({ type: [String], default: [] })
-  skills!: string[];
-
-  @Prop({ type: [String], default: [] })
-  technologies!: string[];
-
-  @Prop({ type: [String], default: [] })
-  interests!: string[];
-
-  @Prop({ type: [String], default: [] })
-  achievements!: string[];
-
-  @Prop({ type: [CertificationSchema], default: [] })
-  certifications!: CertificationEntry[];
-
-  @Prop({ type: [String], default: [] })
-  awards!: string[];
-
-  @Prop({ default: '' })
-  additionalNotes!: string;
+  resume!: { url: string | null; parsedText: string | null };
 }
-const ProfessionalSchema = SchemaFactory.createForClass(ProfessionalSubDoc);
+const IdentitySchema = SchemaFactory.createForClass(IdentitySubDoc);
 
 @Schema({ _id: false })
-class ResearchPaperSubDoc implements ResearchPaperEntry {
-  @Prop({ required: true })
-  title!: string;
-
+class ScreenshotSubDoc {
   @Prop({ required: true })
   url!: string;
 
-  @Prop({ default: '' })
-  abstract!: string;
+  @Prop({ type: String, default: null })
+  caption!: string | null;
 }
-const ResearchPaperSchema = SchemaFactory.createForClass(ResearchPaperSubDoc);
+const ScreenshotSchema = SchemaFactory.createForClass(ScreenshotSubDoc);
 
 @Schema({ _id: false })
-class ProjectSubDoc implements ProjectEntry {
+class CodeSnippetSubDoc {
+  @Prop({ required: true })
+  language!: string;
+
+  @Prop({ required: true })
+  code!: string;
+
+  @Prop({ type: String, default: null })
+  description!: string | null;
+}
+const CodeSnippetSchema = SchemaFactory.createForClass(CodeSnippetSubDoc);
+
+@Schema({ _id: false })
+class WorkSubDoc implements WorkEntry {
+  @Prop({ required: true, enum: WorkType, default: WorkType.PROJECT })
+  type!: WorkType;
+
   @Prop({ required: true })
   name!: string;
 
   @Prop({ type: String, default: null })
-  url!: string | null;
+  tagline!: string | null;
 
   @Prop({ default: '' })
   description!: string;
 
+  @Prop({ type: String, default: null })
+  url!: string | null;
+
+  @Prop({ type: String, default: null })
+  repoUrl!: string | null;
+
+  @Prop({ type: String, default: null })
+  coverImage!: string | null;
+
+  @Prop({ type: [ScreenshotSchema], default: [] })
+  screenshots!: { url: string; caption: string | null }[];
+
   @Prop({ type: [String], default: [] })
   technologies!: string[];
+
+  @Prop({ type: [String], default: [] })
+  tags!: string[];
+
+  @Prop({
+    type: String,
+    enum: ['active', 'completed', 'in-progress', 'archived'],
+    default: 'completed',
+  })
+  status!: 'active' | 'completed' | 'in-progress' | 'archived';
+
+  @Prop({ type: [String], default: [] })
+  highlights!: string[];
+
+  @Prop({ default: false })
+  featured!: boolean;
+
+  @Prop({ type: [CodeSnippetSchema], default: [] })
+  codeSnippets!: { language: string; code: string; description: string | null }[];
+
+  @Prop({ type: String, default: null })
+  date!: string | null;
 }
-const ProjectSchema = SchemaFactory.createForClass(ProjectSubDoc);
+const WorkSchema = SchemaFactory.createForClass(WorkSubDoc);
 
 @Schema({ _id: false })
-class OtherProfileSubDoc implements OtherProfileEntry {
+class TimelineSubDoc implements TimelineEntry {
+  @Prop({ required: true, enum: TimelineCategory })
+  category!: TimelineCategory;
+
+  @Prop({ required: true })
+  date!: string;
+
+  @Prop({ type: String, default: null })
+  endDate!: string | null;
+
+  @Prop({ required: true })
+  label!: string;
+
+  @Prop({ type: String, default: null })
+  organization!: string | null;
+
+  @Prop({ type: String, default: null })
+  organizationLogoUrl!: string | null;
+
+  @Prop({ type: String, default: null })
+  description!: string | null;
+
+  @Prop({ default: false })
+  highlight!: boolean;
+
+  @Prop({ type: String, default: null })
+  url!: string | null;
+}
+const TimelineSchema = SchemaFactory.createForClass(TimelineSubDoc);
+
+@Schema({ _id: false })
+class CapabilitySubDoc implements CapabilityEntry {
+  @Prop({ required: true })
+  name!: string;
+
+  @Prop({ type: String, default: null })
+  description!: string | null;
+
+  @Prop({ type: String, default: null })
+  icon!: string | null;
+
+  @Prop({ type: String, default: null })
+  category!: string | null;
+
+  @Prop({ type: String, enum: [...Object.values(CapabilityProficiency), null], default: null })
+  proficiency!: CapabilityProficiency | null;
+
+  @Prop({ type: Number, default: null })
+  yearsOfExperience!: number | null;
+}
+const CapabilitySchema = SchemaFactory.createForClass(CapabilitySubDoc);
+
+@Schema({ _id: false })
+class CtaSubDoc {
+  @Prop({ required: true })
+  label!: string;
+
+  @Prop({ required: true })
+  url!: string;
+}
+const CtaSchema = SchemaFactory.createForClass(CtaSubDoc);
+
+@Schema({ _id: false })
+class OfferingSubDoc implements OfferingEntry {
+  @Prop({ required: true })
+  name!: string;
+
+  @Prop({ required: true })
+  description!: string;
+
+  @Prop({ type: String, default: null })
+  icon!: string | null;
+
+  @Prop({ type: String, default: null })
+  price!: string | null;
+
+  @Prop({ type: [String], default: [] })
+  features!: string[];
+
+  @Prop({ default: false })
+  highlighted!: boolean;
+
+  @Prop({ type: [String], default: [] })
+  tags!: string[];
+
+  @Prop({ type: CtaSchema, default: null })
+  cta!: { label: string; url: string } | null;
+}
+const OfferingSchema = SchemaFactory.createForClass(OfferingSubDoc);
+
+@Schema({ _id: false })
+class MetricSubDoc implements MetricEntry {
+  @Prop({ required: true })
+  value!: string;
+
+  @Prop({ required: true })
+  label!: string;
+
+  @Prop({ type: String, default: null })
+  description!: string | null;
+
+  @Prop({ type: String, default: null })
+  icon!: string | null;
+
+  @Prop({ type: String, default: null })
+  category!: string | null;
+}
+const MetricSchema = SchemaFactory.createForClass(MetricSubDoc);
+
+@Schema({ _id: false })
+class TestimonialSubDoc implements TestimonialEntry {
+  @Prop({ required: true })
+  text!: string;
+
+  @Prop({ required: true })
+  author!: string;
+
+  @Prop({ type: String, default: null })
+  role!: string | null;
+
+  @Prop({ type: String, default: null })
+  organization!: string | null;
+
+  @Prop({ type: String, default: null })
+  avatarUrl!: string | null;
+
+  @Prop({ required: true, enum: TestimonialRelationship })
+  relationship!: TestimonialRelationship;
+
+  @Prop({ default: false })
+  featured!: boolean;
+}
+const TestimonialSchema = SchemaFactory.createForClass(TestimonialSubDoc);
+
+@Schema({ _id: false })
+class SocialLinkSubDoc {
+  @Prop({ required: true })
+  platform!: string;
+
+  @Prop({ required: true })
+  url!: string;
+
+  @Prop({ type: String, default: null })
+  label!: string | null;
+}
+const SocialLinkSchema = SchemaFactory.createForClass(SocialLinkSubDoc);
+
+@Schema({ _id: false })
+class TeamLinkSubDoc {
   @Prop({ required: true })
   platform!: string;
 
   @Prop({ required: true })
   url!: string;
 }
-const OtherProfileSchema = SchemaFactory.createForClass(OtherProfileSubDoc);
+const TeamLinkSchema = SchemaFactory.createForClass(TeamLinkSubDoc);
 
 @Schema({ _id: false })
-class ExternalSubDoc implements ExternalSection {
-  @Prop({ type: String, default: null })
-  linkedin!: string | null;
+class TeamMemberSubDoc implements TeamMemberEntry {
+  @Prop({ required: true })
+  name!: string;
+
+  @Prop({ required: true })
+  role!: string;
 
   @Prop({ type: String, default: null })
-  github!: string | null;
+  bio!: string | null;
 
   @Prop({ type: String, default: null })
-  twitter!: string | null;
+  avatarUrl!: string | null;
+
+  @Prop({ type: [TeamLinkSchema], default: [] })
+  links!: { platform: string; url: string }[];
+}
+const TeamMemberSchema = SchemaFactory.createForClass(TeamMemberSubDoc);
+
+@Schema({ _id: false })
+class MediaSubDoc implements MediaEntry {
+  @Prop({ required: true })
+  url!: string;
 
   @Prop({ type: String, default: null })
-  personalWebsite!: string | null;
+  caption!: string | null;
+
+  @Prop({ required: true, enum: ['image', 'video'] })
+  type!: 'image' | 'video';
 
   @Prop({ type: String, default: null })
-  portfolioWebsite!: string | null;
+  category!: string | null;
+}
+const MediaSchema = SchemaFactory.createForClass(MediaSubDoc);
 
-  @Prop({ type: [ResearchPaperSchema], default: [] })
-  researchPapers!: ResearchPaperEntry[];
+@Schema({ _id: false })
+class ContentSubDoc implements ContentEntry {
+  @Prop({ required: true, enum: ContentType })
+  type!: ContentType;
 
-  @Prop({ type: [ProjectSchema], default: [] })
-  projects!: ProjectEntry[];
+  @Prop({ required: true })
+  title!: string;
+
+  @Prop({ required: true })
+  url!: string;
+
+  @Prop({ type: String, default: null })
+  description!: string | null;
+
+  @Prop({ type: String, default: null })
+  thumbnailUrl!: string | null;
+
+  @Prop({ type: String, default: null })
+  date!: string | null;
 
   @Prop({ type: [String], default: [] })
-  blogs!: string[];
+  tags!: string[];
 
-  @Prop({ type: [OtherProfileSchema], default: [] })
-  otherProfiles!: OtherProfileEntry[];
+  @Prop({ default: false })
+  featured!: boolean;
 }
-const ExternalSchema = SchemaFactory.createForClass(ExternalSubDoc);
+const ContentSchema = SchemaFactory.createForClass(ContentSubDoc);
+
+@Schema({ _id: false })
+class SocialSubDoc implements SocialSection {
+  @Prop({ type: [SocialLinkSchema], default: [] })
+  links!: { platform: string; url: string; label: string | null }[];
+
+  @Prop({ type: String, default: null })
+  email!: string | null;
+
+  @Prop({ type: String, default: null })
+  phone!: string | null;
+
+  @Prop({ type: String, default: null })
+  calendarUrl!: string | null;
+}
+const SocialSchema = SchemaFactory.createForClass(SocialSubDoc);
 
 @Schema({ _id: false })
 class AiSettingsSubDoc implements AiSettingsSection {
@@ -286,42 +451,41 @@ class Profile implements IProfile {
   @Prop({ type: String, default: null })
   protectedPassword!: string | null;
 
-  @Prop({ type: BasicSchema, required: true })
-  basic!: BasicSection;
+  @Prop({ type: IdentitySchema, required: true })
+  identity!: IdentitySection;
+
+  @Prop({ type: [WorkSchema], default: [] })
+  works!: WorkEntry[];
+
+  @Prop({ type: [TimelineSchema], default: [] })
+  timeline!: TimelineEntry[];
+
+  @Prop({ type: [CapabilitySchema], default: [] })
+  capabilities!: CapabilityEntry[];
+
+  @Prop({ type: [OfferingSchema], default: [] })
+  offerings!: OfferingEntry[];
+
+  @Prop({ type: [MetricSchema], default: [] })
+  metrics!: MetricEntry[];
+
+  @Prop({ type: [TestimonialSchema], default: [] })
+  testimonials!: TestimonialEntry[];
+
+  @Prop({ type: [TeamMemberSchema], default: [] })
+  team!: TeamMemberEntry[];
+
+  @Prop({ type: [MediaSchema], default: [] })
+  media!: MediaEntry[];
+
+  @Prop({ type: [ContentSchema], default: [] })
+  content!: ContentEntry[];
 
   @Prop({
-    type: ProfessionalSchema,
-    default: () => ({
-      resume: { url: null, parsedText: null },
-      education: [],
-      currentPosition: null,
-      experience: [],
-      skills: [],
-      technologies: [],
-      interests: [],
-      achievements: [],
-      certifications: [],
-      awards: [],
-      additionalNotes: '',
-    }),
+    type: SocialSchema,
+    default: () => ({ links: [], email: null, phone: null, calendarUrl: null }),
   })
-  professional!: ProfessionalSection;
-
-  @Prop({
-    type: ExternalSchema,
-    default: () => ({
-      linkedin: null,
-      github: null,
-      twitter: null,
-      personalWebsite: null,
-      portfolioWebsite: null,
-      researchPapers: [],
-      projects: [],
-      blogs: [],
-      otherProfiles: [],
-    }),
-  })
-  external!: ExternalSection;
+  social!: SocialSection;
 
   @Prop({
     type: AiSettingsSchema,
@@ -348,4 +512,3 @@ class Profile implements IProfile {
 }
 
 export const ProfileSchema = SchemaFactory.createForClass(Profile);
-

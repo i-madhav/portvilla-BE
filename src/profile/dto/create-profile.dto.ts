@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsArray,
   IsEnum,
   IsNotEmpty,
   IsOptional,
@@ -12,9 +13,17 @@ import {
 import { Type } from 'class-transformer';
 
 import { ProfileVisibility } from '../domain/profile.interface';
-import { BasicInfoDto } from './sections/basic.dto';
-import { ProfessionalInfoDto } from './sections/professional.dto';
-import { ExternalSourcesDto } from './sections/external.dto';
+import { IdentityDto } from './sections/identity.dto';
+import { WorkEntryDto } from './sections/works.dto';
+import { TimelineEntryDto } from './sections/timeline.dto';
+import { CapabilityEntryDto } from './sections/capabilities.dto';
+import { OfferingEntryDto } from './sections/offerings.dto';
+import { MetricEntryDto } from './sections/metrics.dto';
+import { TestimonialEntryDto } from './sections/testimonials.dto';
+import { TeamMemberEntryDto } from './sections/team.dto';
+import { MediaEntryDto } from './sections/media.dto';
+import { ContentEntryDto } from './sections/content.dto';
+import { SocialDto } from './sections/social.dto';
 import { AiSettingsDto } from './update-ai-settings.dto';
 
 export class CreateProfileDto {
@@ -49,22 +58,79 @@ export class CreateProfileDto {
   @IsOptional()
   protectedPassword?: string;
 
-  @ApiProperty({ type: BasicInfoDto })
+  @ApiProperty({ type: IdentityDto })
   @ValidateNested()
-  @Type(() => BasicInfoDto)
-  basic!: BasicInfoDto;
+  @Type(() => IdentityDto)
+  identity!: IdentityDto;
 
-  @ApiPropertyOptional({ type: ProfessionalInfoDto })
-  @ValidateNested()
-  @Type(() => ProfessionalInfoDto)
+  @ApiPropertyOptional({ type: [WorkEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WorkEntryDto)
   @IsOptional()
-  professional?: ProfessionalInfoDto;
+  works?: WorkEntryDto[];
 
-  @ApiPropertyOptional({ type: ExternalSourcesDto })
-  @ValidateNested()
-  @Type(() => ExternalSourcesDto)
+  @ApiPropertyOptional({ type: [TimelineEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TimelineEntryDto)
   @IsOptional()
-  external?: ExternalSourcesDto;
+  timeline?: TimelineEntryDto[];
+
+  @ApiPropertyOptional({ type: [CapabilityEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CapabilityEntryDto)
+  @IsOptional()
+  capabilities?: CapabilityEntryDto[];
+
+  @ApiPropertyOptional({ type: [OfferingEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OfferingEntryDto)
+  @IsOptional()
+  offerings?: OfferingEntryDto[];
+
+  @ApiPropertyOptional({ type: [MetricEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MetricEntryDto)
+  @IsOptional()
+  metrics?: MetricEntryDto[];
+
+  @ApiPropertyOptional({ type: [TestimonialEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TestimonialEntryDto)
+  @IsOptional()
+  testimonials?: TestimonialEntryDto[];
+
+  @ApiPropertyOptional({ type: [TeamMemberEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TeamMemberEntryDto)
+  @IsOptional()
+  team?: TeamMemberEntryDto[];
+
+  @ApiPropertyOptional({ type: [MediaEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MediaEntryDto)
+  @IsOptional()
+  media?: MediaEntryDto[];
+
+  @ApiPropertyOptional({ type: [ContentEntryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ContentEntryDto)
+  @IsOptional()
+  content?: ContentEntryDto[];
+
+  @ApiPropertyOptional({ type: SocialDto })
+  @ValidateNested()
+  @Type(() => SocialDto)
+  @IsOptional()
+  social?: SocialDto;
 
   @ApiPropertyOptional({ type: AiSettingsDto })
   @ValidateNested()

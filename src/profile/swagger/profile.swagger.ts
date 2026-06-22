@@ -34,7 +34,7 @@ export const CreateProfileEndpoint = (): MethodDecorator =>
   applyDecorators(
     Bearer(),
     ApiOperation({
-      summary: 'Create candidate profile (onboarding)',
+      summary: 'Create profile (onboarding)',
       description:
         'Creates the profile document for the authenticated user. ' +
         'Can only be called once — returns 409 if a profile already exists or the username is taken.',
@@ -59,7 +59,7 @@ export const GetProfileDataEndpoint = (): MethodDecorator =>
   applyDecorators(
     Bearer(),
     ApiOperation({
-      summary: 'Get own candidate profile data',
+      summary: 'Get own profile data',
       description: 'Returns the full profile record for the authenticated user. The raw AI API key is never returned; `aiSettings.apiKeyConfigured` indicates whether one is saved.',
     }),
     ApiResponse({
@@ -113,7 +113,7 @@ export const UploadResumeEndpoint = (): MethodDecorator =>
     }),
     ApiResponse({
       status: HttpStatus.OK,
-      description: 'Resume uploaded. URL saved to professional.resume.url.',
+      description: 'Resume uploaded. URL saved to identity.resume.url.',
       type: ProfileDataResponseDto,
     }),
     ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'File must be PDF, max 5 MB.' }),
@@ -137,7 +137,7 @@ export const UploadProfileImageEndpoint = (): MethodDecorator =>
     }),
     ApiResponse({
       status: HttpStatus.OK,
-      description: 'Profile image uploaded. URL saved to basic.profileImage.',
+      description: 'Profile image uploaded. URL saved to identity.primaryImage.',
       type: ProfileDataResponseDto,
     }),
     ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'File must be JPEG/PNG/WebP, max 2 MB.' }),

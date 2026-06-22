@@ -10,13 +10,22 @@ import { PROFILE_REPOSITORY } from './domain/profile-repository.interface';
 import type { IProfileRepository } from './domain/profile-repository.interface';
 import {
   ProfileVisibility,
+  EntityType,
   AgentTone,
   AgentVerbosity,
   AgentTechnicalDepth,
   AgentSpeakingSpeed,
-  type BasicSection,
-  type ProfessionalSection,
-  type ExternalSection,
+  type IdentitySection,
+  type WorkEntry,
+  type TimelineEntry,
+  type CapabilityEntry,
+  type OfferingEntry,
+  type MetricEntry,
+  type TestimonialEntry,
+  type TeamMemberEntry,
+  type MediaEntry,
+  type ContentEntry,
+  type SocialSection,
   type AiSettingsSection,
   type AgentPersonaSection,
 } from './domain/profile.interface';
@@ -65,11 +74,19 @@ export class ProfileService {
       username: slug,
       visibility: dto.visibility ?? ProfileVisibility.PUBLIC,
       protectedPassword,
-      basic: this.buildBasic(dto.basic),
-      professional: this.buildProfessional(dto.professional),
-      external: this.buildExternal(dto.external),
+      identity: this.buildIdentity(dto.identity),
+      works: this.buildWorks(dto.works),
+      timeline: this.buildTimeline(dto.timeline),
+      capabilities: this.buildCapabilities(dto.capabilities),
+      offerings: this.buildOfferings(dto.offerings),
+      metrics: this.buildMetrics(dto.metrics),
+      testimonials: this.buildTestimonials(dto.testimonials),
+      team: this.buildTeam(dto.team),
+      media: this.buildMedia(dto.media),
+      content: this.buildContent(dto.content),
+      social: this.buildSocial(dto.social),
       aiSettings: this.buildAiSettings(dto.aiSettings),
-      agentPersona: this.buildAgentPersona(),    
+      agentPersona: this.buildAgentPersona(),
     });
 
     return ProfileDataResponseDto.fromRecord(record);
@@ -84,38 +101,37 @@ export class ProfileService {
   async updateProfile(profileId: string, dto: UpdateProfileDto): Promise<ProfileDataResponseDto> {
     const fields: Record<string, unknown> = {};
 
-    const { basic, professional, external, aiSettings, agentPersona, visibility } = dto;
+    const { identity, works, timeline, capabilities, offerings, metrics, testimonials, team, media, content, social, aiSettings, agentPersona, visibility } = dto;
 
-    if (basic) {
-      if (basic.name !== undefined) fields['basic.name'] = basic.name;
-      if (basic.title !== undefined) fields['basic.title'] = basic.title;
-      if (basic.introduction !== undefined) fields['basic.introduction'] = basic.introduction;
-      if (basic.aboutMe !== undefined) fields['basic.aboutMe'] = basic.aboutMe;
+    if (identity) {
+      if (identity.entityType !== undefined) fields['identity.entityType'] = identity.entityType;
+      if (identity.name !== undefined) fields['identity.name'] = identity.name;
+      if (identity.tagline !== undefined) fields['identity.tagline'] = identity.tagline ?? null;
+      if (identity.bio !== undefined) fields['identity.bio'] = identity.bio ?? null;
+      if (identity.about !== undefined) fields['identity.about'] = identity.about ?? null;
+      if (identity.primaryImage !== undefined) fields['identity.primaryImage'] = identity.primaryImage ?? null;
+      if (identity.coverImage !== undefined) fields['identity.coverImage'] = identity.coverImage ?? null;
+      if (identity.location !== undefined) fields['identity.location'] = identity.location ?? null;
+      if (identity.foundedOrBorn !== undefined) fields['identity.foundedOrBorn'] = identity.foundedOrBorn ?? null;
+      if (identity.industry !== undefined) fields['identity.industry'] = identity.industry ?? null;
+      if (identity.availability !== undefined) fields['identity.availability'] = identity.availability ?? null;
     }
 
-    if (professional) {
-      if (professional.education !== undefined) fields['professional.education'] = professional.education.map(e => ({ ...e, endDate: e.endDate ?? null, description: e.description ?? '' }));
-      if (professional.currentPosition !== undefined) fields['professional.currentPosition'] = professional.currentPosition ? { ...professional.currentPosition, description: professional.currentPosition.description ?? '' } : null;
-      if (professional.experience !== undefined) fields['professional.experience'] = professional.experience.map(e => ({ ...e, endDate: e.endDate ?? null, description: e.description ?? '' }));
-      if (professional.skills !== undefined) fields['professional.skills'] = professional.skills;
-      if (professional.technologies !== undefined) fields['professional.technologies'] = professional.technologies;
-      if (professional.interests !== undefined) fields['professional.interests'] = professional.interests;
-      if (professional.achievements !== undefined) fields['professional.achievements'] = professional.achievements;
-      if (professional.certifications !== undefined) fields['professional.certifications'] = professional.certifications.map(c => ({ ...c, url: c.url ?? null }));
-      if (professional.awards !== undefined) fields['professional.awards'] = professional.awards;
-      if (professional.additionalNotes !== undefined) fields['professional.additionalNotes'] = professional.additionalNotes;
-    }
+    if (works !== undefined) fields['works'] = this.buildWorks(works);
+    if (timeline !== undefined) fields['timeline'] = this.buildTimeline(timeline);
+    if (capabilities !== undefined) fields['capabilities'] = this.buildCapabilities(capabilities);
+    if (offerings !== undefined) fields['offerings'] = this.buildOfferings(offerings);
+    if (metrics !== undefined) fields['metrics'] = this.buildMetrics(metrics);
+    if (testimonials !== undefined) fields['testimonials'] = this.buildTestimonials(testimonials);
+    if (team !== undefined) fields['team'] = this.buildTeam(team);
+    if (media !== undefined) fields['media'] = this.buildMedia(media);
+    if (content !== undefined) fields['content'] = this.buildContent(content);
 
-    if (external) {
-      if (external.linkedin !== undefined) fields['external.linkedin'] = external.linkedin ?? null;
-      if (external.github !== undefined) fields['external.github'] = external.github ?? null;
-      if (external.twitter !== undefined) fields['external.twitter'] = external.twitter ?? null;
-      if (external.personalWebsite !== undefined) fields['external.personalWebsite'] = external.personalWebsite ?? null;
-      if (external.portfolioWebsite !== undefined) fields['external.portfolioWebsite'] = external.portfolioWebsite ?? null;
-      if (external.researchPapers !== undefined) fields['external.researchPapers'] = external.researchPapers.map(p => ({ ...p, abstract: p.abstract ?? '' }));
-      if (external.projects !== undefined) fields['external.projects'] = external.projects.map(p => ({ ...p, url: p.url ?? null, description: p.description ?? '', technologies: p.technologies ?? [] }));
-      if (external.blogs !== undefined) fields['external.blogs'] = external.blogs;
-      if (external.otherProfiles !== undefined) fields['external.otherProfiles'] = external.otherProfiles;
+    if (social) {
+      if (social.links !== undefined) fields['social.links'] = social.links.map(l => ({ platform: l.platform, url: l.url, label: l.label ?? null }));
+      if (social.email !== undefined) fields['social.email'] = social.email ?? null;
+      if (social.phone !== undefined) fields['social.phone'] = social.phone ?? null;
+      if (social.calendarUrl !== undefined) fields['social.calendarUrl'] = social.calendarUrl ?? null;
     }
 
     if (aiSettings) {
@@ -147,14 +163,14 @@ export class ProfileService {
 
   async uploadResume(profileId: string, file: Express.Multer.File): Promise<ProfileDataResponseDto> {
     const record = await this.profileRepository.update(profileId, {
-      'professional.resume.url': toUploadUrl('resumes', file.filename),
+      'identity.resume.url': toUploadUrl('resumes', file.filename),
     });
     return ProfileDataResponseDto.fromRecord(record);
   }
 
   async uploadProfileImage(profileId: string, file: Express.Multer.File): Promise<ProfileDataResponseDto> {
     const record = await this.profileRepository.update(profileId, {
-      'basic.profileImage': toUploadUrl('profile-images', file.filename),
+      'identity.primaryImage': toUploadUrl('profile-images', file.filename),
     });
     return ProfileDataResponseDto.fromRecord(record);
   }
@@ -165,45 +181,143 @@ export class ProfileService {
     await this.profileRepository.deleteByUserId(userId);
   }
 
-  // ─── Private helpers ───────────────────────────────────────────────────────
+  // ─── Private section builders ──────────────────────────────────────────────
 
-  private buildBasic(dto: CreateProfileDto['basic']): BasicSection {
+  private buildIdentity(dto: CreateProfileDto['identity']): IdentitySection {
     return {
+      entityType: dto.entityType ?? EntityType.INDIVIDUAL,
       name: dto.name,
-      title: dto.title,
-      profileImage: null,
-      introduction: dto.introduction ?? '',
-      aboutMe: dto.aboutMe ?? '',
-    };
-  }
-
-  private buildProfessional(dto: CreateProfileDto['professional']): ProfessionalSection {
-    return {
+      tagline: dto.tagline ?? null,
+      bio: dto.bio ?? null,
+      about: dto.about ?? null,
+      primaryImage: null,
+      coverImage: dto.coverImage ?? null,
+      location: dto.location ?? null,
+      foundedOrBorn: dto.foundedOrBorn ?? null,
+      industry: dto.industry ?? null,
+      availability: dto.availability ?? null,
       resume: { url: null, parsedText: null },
-      education: dto?.education?.map(e => ({ ...e, endDate: e.endDate ?? null, description: e.description ?? '' })) ?? [],
-      currentPosition: dto?.currentPosition ? { ...dto.currentPosition, description: dto.currentPosition.description ?? '' } : null,
-      experience: dto?.experience?.map(e => ({ ...e, endDate: e.endDate ?? null, description: e.description ?? '' })) ?? [],
-      skills: dto?.skills ?? [],
-      technologies: dto?.technologies ?? [],
-      interests: dto?.interests ?? [],
-      achievements: dto?.achievements ?? [],
-      certifications: dto?.certifications?.map(c => ({ ...c, url: c.url ?? null })) ?? [],
-      awards: dto?.awards ?? [],
-      additionalNotes: dto?.additionalNotes ?? '',
     };
   }
 
-  private buildExternal(dto: CreateProfileDto['external']): ExternalSection {
+  private buildWorks(dto: CreateProfileDto['works']): WorkEntry[] {
+    return (dto ?? []).map(w => ({
+      type: w.type,
+      name: w.name,
+      tagline: w.tagline ?? null,
+      description: w.description ?? '',
+      url: w.url ?? null,
+      repoUrl: w.repoUrl ?? null,
+      coverImage: w.coverImage ?? null,
+      screenshots: (w.screenshots ?? []).map(s => ({ url: s.url, caption: s.caption ?? null })),
+      technologies: w.technologies ?? [],
+      tags: w.tags ?? [],
+      status: w.status ?? 'completed',
+      highlights: w.highlights ?? [],
+      featured: w.featured ?? false,
+      codeSnippets: (w.codeSnippets ?? []).map(c => ({ language: c.language, code: c.code, description: c.description ?? null })),
+      date: w.date ?? null,
+    }));
+  }
+
+  private buildTimeline(dto: CreateProfileDto['timeline']): TimelineEntry[] {
+    return (dto ?? []).map(t => ({
+      category: t.category,
+      date: t.date,
+      endDate: t.endDate ?? null,
+      label: t.label,
+      organization: t.organization ?? null,
+      organizationLogoUrl: t.organizationLogoUrl ?? null,
+      description: t.description ?? null,
+      highlight: t.highlight ?? false,
+      url: t.url ?? null,
+    }));
+  }
+
+  private buildCapabilities(dto: CreateProfileDto['capabilities']): CapabilityEntry[] {
+    return (dto ?? []).map(c => ({
+      name: c.name,
+      description: c.description ?? null,
+      icon: c.icon ?? null,
+      category: c.category ?? null,
+      proficiency: c.proficiency ?? null,
+      yearsOfExperience: c.yearsOfExperience ?? null,
+    }));
+  }
+
+  private buildOfferings(dto: CreateProfileDto['offerings']): OfferingEntry[] {
+    return (dto ?? []).map(o => ({
+      name: o.name,
+      description: o.description,
+      icon: o.icon ?? null,
+      price: o.price ?? null,
+      features: o.features ?? [],
+      highlighted: o.highlighted ?? false,
+      tags: o.tags ?? [],
+      cta: o.cta ? { label: o.cta.label, url: o.cta.url } : null,
+    }));
+  }
+
+  private buildMetrics(dto: CreateProfileDto['metrics']): MetricEntry[] {
+    return (dto ?? []).map(m => ({
+      value: m.value,
+      label: m.label,
+      description: m.description ?? null,
+      icon: m.icon ?? null,
+      category: m.category ?? null,
+    }));
+  }
+
+  private buildTestimonials(dto: CreateProfileDto['testimonials']): TestimonialEntry[] {
+    return (dto ?? []).map(t => ({
+      text: t.text,
+      author: t.author,
+      role: t.role ?? null,
+      organization: t.organization ?? null,
+      avatarUrl: t.avatarUrl ?? null,
+      relationship: t.relationship,
+      featured: t.featured ?? false,
+    }));
+  }
+
+  private buildTeam(dto: CreateProfileDto['team']): TeamMemberEntry[] {
+    return (dto ?? []).map(m => ({
+      name: m.name,
+      role: m.role,
+      bio: m.bio ?? null,
+      avatarUrl: m.avatarUrl ?? null,
+      links: (m.links ?? []).map(l => ({ platform: l.platform, url: l.url })),
+    }));
+  }
+
+  private buildMedia(dto: CreateProfileDto['media']): MediaEntry[] {
+    return (dto ?? []).map(m => ({
+      url: m.url,
+      caption: m.caption ?? null,
+      type: m.type,
+      category: m.category ?? null,
+    }));
+  }
+
+  private buildContent(dto: CreateProfileDto['content']): ContentEntry[] {
+    return (dto ?? []).map(c => ({
+      type: c.type,
+      title: c.title,
+      url: c.url,
+      description: c.description ?? null,
+      thumbnailUrl: c.thumbnailUrl ?? null,
+      date: c.date ?? null,
+      tags: c.tags ?? [],
+      featured: c.featured ?? false,
+    }));
+  }
+
+  private buildSocial(dto: CreateProfileDto['social']): SocialSection {
     return {
-      linkedin: dto?.linkedin ?? null,
-      github: dto?.github ?? null,
-      twitter: dto?.twitter ?? null,
-      personalWebsite: dto?.personalWebsite ?? null,
-      portfolioWebsite: dto?.portfolioWebsite ?? null,
-      researchPapers: dto?.researchPapers?.map(p => ({ ...p, abstract: p.abstract ?? '' })) ?? [],
-      projects: dto?.projects?.map(p => ({ ...p, url: p.url ?? null, description: p.description ?? '', technologies: p.technologies ?? [] })) ?? [],
-      blogs: dto?.blogs ?? [],
-      otherProfiles: dto?.otherProfiles ?? [],
+      links: (dto?.links ?? []).map(l => ({ platform: l.platform, url: l.url, label: l.label ?? null })),
+      email: dto?.email ?? null,
+      phone: dto?.phone ?? null,
+      calendarUrl: dto?.calendarUrl ?? null,
     };
   }
 

@@ -1,11 +1,19 @@
 import type {
   IProfileRecord,
   ProfileVisibility,
-  BasicSection,
-  ProfessionalSection,
-  ExternalSection,
+  IdentitySection,
+  SocialSection,
   AiSettingsSection,
   AgentPersonaSection,
+  WorkEntry,
+  TimelineEntry,
+  CapabilityEntry,
+  OfferingEntry,
+  MetricEntry,
+  TestimonialEntry,
+  TeamMemberEntry,
+  MediaEntry,
+  ContentEntry,
 } from './profile.interface';
 
 // ─── Injection Token ──────────────────────────────────────────────────────────
@@ -19,9 +27,17 @@ export interface CreateProfileData {
   username: string;
   visibility: ProfileVisibility;
   protectedPassword: string | null;
-  basic: BasicSection;
-  professional: ProfessionalSection;
-  external: ExternalSection;
+  identity: IdentitySection;
+  works: WorkEntry[];
+  timeline: TimelineEntry[];
+  capabilities: CapabilityEntry[];
+  offerings: OfferingEntry[];
+  metrics: MetricEntry[];
+  testimonials: TestimonialEntry[];
+  team: TeamMemberEntry[];
+  media: MediaEntry[];
+  content: ContentEntry[];
+  social: SocialSection;
   aiSettings: AiSettingsSection;
   agentPersona: AgentPersonaSection;
 }

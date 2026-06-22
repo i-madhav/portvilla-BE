@@ -1,32 +1,97 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, ValidateNested } from 'class-validator';
+import { IsArray, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-import { UpdateBasicDto } from './update-basic.dto';
-import { UpdateProfessionalDto } from './update-professional.dto';
-import { UpdateExternalDto } from './update-external.dto';
+import { UpdateIdentityDto } from './sections/identity.dto';
+import { WorkEntryDto } from './sections/works.dto';
+import { TimelineEntryDto } from './sections/timeline.dto';
+import { CapabilityEntryDto } from './sections/capabilities.dto';
+import { OfferingEntryDto } from './sections/offerings.dto';
+import { MetricEntryDto } from './sections/metrics.dto';
+import { TestimonialEntryDto } from './sections/testimonials.dto';
+import { TeamMemberEntryDto } from './sections/team.dto';
+import { MediaEntryDto } from './sections/media.dto';
+import { ContentEntryDto } from './sections/content.dto';
+import { SocialDto } from './sections/social.dto';
 import { UpdateAiSettingsDto } from './update-ai-settings.dto';
 import { UpdateAgentPersonaDto } from './update-agent-persona.dto';
 import { UpdateVisibilityDto } from './update-visibility.dto';
 
 export class UpdateProfileDto {
-  @ApiPropertyOptional({ type: UpdateBasicDto })
+  @ApiPropertyOptional({ type: UpdateIdentityDto })
   @ValidateNested()
-  @Type(() => UpdateBasicDto)
+  @Type(() => UpdateIdentityDto)
   @IsOptional()
-  basic?: UpdateBasicDto;
+  identity?: UpdateIdentityDto;
 
-  @ApiPropertyOptional({ type: UpdateProfessionalDto })
-  @ValidateNested()
-  @Type(() => UpdateProfessionalDto)
+  @ApiPropertyOptional({ type: [WorkEntryDto], description: 'Replaces entire works array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WorkEntryDto)
   @IsOptional()
-  professional?: UpdateProfessionalDto;
+  works?: WorkEntryDto[];
 
-  @ApiPropertyOptional({ type: UpdateExternalDto })
-  @ValidateNested()
-  @Type(() => UpdateExternalDto)
+  @ApiPropertyOptional({ type: [TimelineEntryDto], description: 'Replaces entire timeline array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TimelineEntryDto)
   @IsOptional()
-  external?: UpdateExternalDto;
+  timeline?: TimelineEntryDto[];
+
+  @ApiPropertyOptional({ type: [CapabilityEntryDto], description: 'Replaces entire capabilities array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CapabilityEntryDto)
+  @IsOptional()
+  capabilities?: CapabilityEntryDto[];
+
+  @ApiPropertyOptional({ type: [OfferingEntryDto], description: 'Replaces entire offerings array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OfferingEntryDto)
+  @IsOptional()
+  offerings?: OfferingEntryDto[];
+
+  @ApiPropertyOptional({ type: [MetricEntryDto], description: 'Replaces entire metrics array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MetricEntryDto)
+  @IsOptional()
+  metrics?: MetricEntryDto[];
+
+  @ApiPropertyOptional({ type: [TestimonialEntryDto], description: 'Replaces entire testimonials array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TestimonialEntryDto)
+  @IsOptional()
+  testimonials?: TestimonialEntryDto[];
+
+  @ApiPropertyOptional({ type: [TeamMemberEntryDto], description: 'Replaces entire team array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TeamMemberEntryDto)
+  @IsOptional()
+  team?: TeamMemberEntryDto[];
+
+  @ApiPropertyOptional({ type: [MediaEntryDto], description: 'Replaces entire media array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MediaEntryDto)
+  @IsOptional()
+  media?: MediaEntryDto[];
+
+  @ApiPropertyOptional({ type: [ContentEntryDto], description: 'Replaces entire content array.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ContentEntryDto)
+  @IsOptional()
+  content?: ContentEntryDto[];
+
+  @ApiPropertyOptional({ type: SocialDto })
+  @ValidateNested()
+  @Type(() => SocialDto)
+  @IsOptional()
+  social?: SocialDto;
 
   @ApiPropertyOptional({ type: UpdateAiSettingsDto })
   @ValidateNested()

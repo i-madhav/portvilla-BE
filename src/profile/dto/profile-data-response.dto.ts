@@ -1,11 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { ProfileVisibility, LlmProvider, AgentTone, AgentVerbosity, AgentTechnicalDepth, AgentSpeakingSpeed } from '../domain/profile.interface';
+import {
+  ProfileVisibility,
+  LlmProvider,
+  AgentTone,
+  AgentVerbosity,
+  AgentTechnicalDepth,
+  AgentSpeakingSpeed,
+} from '../domain/profile.interface';
 import type {
-  BasicSection,
-  ProfessionalSection,
-  ExternalSection,
   IProfileRecord,
+  IdentitySection,
+  WorkEntry,
+  TimelineEntry,
+  CapabilityEntry,
+  OfferingEntry,
+  MetricEntry,
+  TestimonialEntry,
+  TeamMemberEntry,
+  MediaEntry,
+  ContentEntry,
+  SocialSection,
 } from '../domain/profile.interface';
 
 export class AgentPersonaResponseDto {
@@ -58,13 +73,37 @@ export class ProfileDataResponseDto {
   visibility!: ProfileVisibility;
 
   @ApiProperty()
-  basic!: BasicSection;
+  identity!: IdentitySection;
 
   @ApiProperty()
-  professional!: ProfessionalSection;
+  works!: WorkEntry[];
 
   @ApiProperty()
-  external!: ExternalSection;
+  timeline!: TimelineEntry[];
+
+  @ApiProperty()
+  capabilities!: CapabilityEntry[];
+
+  @ApiProperty()
+  offerings!: OfferingEntry[];
+
+  @ApiProperty()
+  metrics!: MetricEntry[];
+
+  @ApiProperty()
+  testimonials!: TestimonialEntry[];
+
+  @ApiProperty()
+  team!: TeamMemberEntry[];
+
+  @ApiProperty()
+  media!: MediaEntry[];
+
+  @ApiProperty()
+  content!: ContentEntry[];
+
+  @ApiProperty()
+  social!: SocialSection;
 
   @ApiProperty({ type: AiSettingsResponseDto })
   aiSettings!: AiSettingsResponseDto;
@@ -84,9 +123,17 @@ export class ProfileDataResponseDto {
     dto.userId = record.userId;
     dto.username = record.username;
     dto.visibility = record.visibility;
-    dto.basic = record.basic;
-    dto.professional = record.professional;
-    dto.external = record.external;
+    dto.identity = record.identity;
+    dto.works = record.works;
+    dto.timeline = record.timeline;
+    dto.capabilities = record.capabilities;
+    dto.offerings = record.offerings;
+    dto.metrics = record.metrics;
+    dto.testimonials = record.testimonials;
+    dto.team = record.team;
+    dto.media = record.media;
+    dto.content = record.content;
+    dto.social = record.social;
     dto.aiSettings = {
       provider: record.aiSettings.provider,
       apiKeyConfigured: record.aiSettings.apiKey !== null,
