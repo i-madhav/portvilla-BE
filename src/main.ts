@@ -1,12 +1,33 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { LogLevel, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
+/**
+ * Resolves which log levels are emitted.
+ *
+ * NestJS suppresses `debug`/`verbose` unless they are explicitly enabled, which
+ * is why granular step logs never showed up before. `LOG_LEVEL=debug` (or a
+ * `development` NODE_ENV) turns on the full trace; otherwise only
+ * error/warn/log are emitted so production stays quiet.
+ */
+function resolveLogLevels(): LogLevel[] {
+  const verbose: LogLevel[] = ['error', 'warn', 'log', 'debug', 'verbose'];
+  const quiet: LogLevel[] = ['error', 'warn', 'log'];
+
+  const explicit = process.env.LOG_LEVEL?.toLowerCase();
+  if (explicit === 'debug' || explicit === 'verbose') return verbose;
+  if (explicit === 'log' || explicit === 'warn' || explicit === 'error') return quiet;
+
+  return process.env.NODE_ENV === 'development' ? verbose : quiet;
+}
+
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: resolveLogLevels(),
+  });
 
   // ─── Static file serving ────────────────────────────────────────────────
   // Serves uploaded resumes and profile images at /uploads/*

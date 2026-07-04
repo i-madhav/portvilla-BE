@@ -2,6 +2,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
@@ -45,6 +46,8 @@ const RESERVED_USERNAMES = new Set([
 
 @Injectable()
 export class ProfileService {
+  private readonly logger = new Logger(ProfileService.name);
+
   constructor(
     @Inject(PROFILE_REPOSITORY) private readonly profileRepository: IProfileRepository,
   ) {}
@@ -52,18 +55,22 @@ export class ProfileService {
   // ─── Profile CRUD ──────────────────────────────────────────────────────────
 
   async createProfile(userId: string, dto: CreateProfileDto): Promise<ProfileDataResponseDto> {
+    this.logger.debug(`createProfile: start (userId=${userId}, username=${dto.username})`);
     if (await this.profileRepository.existsByUserId(userId)) {
+      this.logger.warn(`createProfile: profile already exists (userId=${userId})`);
       throw new ConflictException('A profile already exists for this account.');
     }
 
     const slug = dto.username.toLowerCase();
     if (RESERVED_USERNAMES.has(slug) || await this.profileRepository.existsByUsername(slug)) {
+      this.logger.warn(`createProfile: username unavailable (${slug})`);
       throw new ConflictException('That username is not available.');
     }
 
     let protectedPassword: string | null = null;
     if (dto.visibility === ProfileVisibility.PROTECTED) {
       if (!dto.protectedPassword) {
+        this.logger.warn(`createProfile: protectedPassword missing for PROTECTED visibility (userId=${userId})`);
         throw new ConflictException('protectedPassword is required when visibility is PROTECTED.');
       }
       protectedPassword = await bcrypt.hash(dto.protectedPassword, 10);
@@ -89,16 +96,22 @@ export class ProfileService {
       agentPersona: this.buildAgentPersona(),
     });
 
+    this.logger.log(`createProfile: created (profileId=${record.id}, username=${slug}, userId=${userId})`);
     return ProfileDataResponseDto.fromRecord(record);
   }
 
   async getProfileData(userId: string): Promise<ProfileDataResponseDto> {
+    this.logger.debug(`getProfileData: lookup (userId=${userId})`);
     const record = await this.profileRepository.findByUserId(userId);
-    if (!record) throw new NotFoundException('Profile not found.');
+    if (!record) {
+      this.logger.warn(`getProfileData: profile not found (userId=${userId})`);
+      throw new NotFoundException('Profile not found.');
+    }
     return ProfileDataResponseDto.fromRecord(record);
   }
 
   async updateProfile(profileId: string, dto: UpdateProfileDto): Promise<ProfileDataResponseDto> {
+    this.logger.debug(`updateProfile: start (profileId=${profileId})`);
     const fields: Record<string, unknown> = {};
 
     const { identity, works, timeline, capabilities, offerings, metrics, testimonials, team, media, content, social, aiSettings, agentPersona, visibility } = dto;
@@ -157,28 +170,41 @@ export class ProfileService {
         : null;
     }
 
+    // Log the section paths being written (never the values — this may include
+    // 'protectedPassword' / 'aiSettings.apiKey' keys, whose values stay redacted).
+    this.logger.debug(`updateProfile: writing ${Object.keys(fields).length} field(s): [${Object.keys(fields).join(', ')}]`);
     const record = await this.profileRepository.update(profileId, fields);
+    this.logger.log(`updateProfile: updated (profileId=${profileId})`);
     return ProfileDataResponseDto.fromRecord(record);
   }
 
   async uploadResume(profileId: string, file: Express.Multer.File): Promise<ProfileDataResponseDto> {
+    this.logger.debug(`uploadResume: storing resume (profileId=${profileId}, file=${file.filename})`);
     const record = await this.profileRepository.update(profileId, {
       'identity.resume.url': toUploadUrl('resumes', file.filename),
     });
+    this.logger.log(`uploadResume: resume saved (profileId=${profileId})`);
     return ProfileDataResponseDto.fromRecord(record);
   }
 
   async uploadProfileImage(profileId: string, file: Express.Multer.File): Promise<ProfileDataResponseDto> {
+    this.logger.debug(`uploadProfileImage: storing image (profileId=${profileId}, file=${file.filename})`);
     const record = await this.profileRepository.update(profileId, {
       'identity.primaryImage': toUploadUrl('profile-images', file.filename),
     });
+    this.logger.log(`uploadProfileImage: image saved (profileId=${profileId})`);
     return ProfileDataResponseDto.fromRecord(record);
   }
 
   async deleteProfile(userId: string): Promise<void> {
+    this.logger.debug(`deleteProfile: start (userId=${userId})`);
     const exists = await this.profileRepository.existsByUserId(userId);
-    if (!exists) throw new NotFoundException('Profile not found.');
+    if (!exists) {
+      this.logger.warn(`deleteProfile: profile not found (userId=${userId})`);
+      throw new NotFoundException('Profile not found.');
+    }
     await this.profileRepository.deleteByUserId(userId);
+    this.logger.log(`deleteProfile: deleted (userId=${userId})`);
   }
 
   // ─── Private section builders ──────────────────────────────────────────────

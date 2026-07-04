@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
   UnprocessableEntityException,
@@ -29,6 +30,7 @@ const BCRYPT_ROUNDS = 12;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly otpExpiryMinutes: number;
   private readonly jwtAccessSecret: string;
   private readonly jwtRefreshSecret: string;
@@ -64,15 +66,19 @@ export class AuthService {
    * Throws ConflictException if the email is already registered.
    */
   async register(dto: RegisterDto): Promise<void> {
+    this.logger.debug(`register: checking if email exists (${dto.email})`);
     const exists = await this.userRepository.existsByEmail(dto.email);
     if (exists) {
+      this.logger.warn(`register: email already registered (${dto.email})`);
       throw new ConflictException('An account with this email already exists.');
     }
 
+    this.logger.debug(`register: hashing password and creating user (${dto.email})`);
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     await this.userRepository.create({ email: dto.email, passwordHash });
 
     await this.issueAndSendOtp(dto.email, OtpPurpose.EMAIL_VERIFICATION);
+    this.logger.log(`register: account created, verification OTP dispatched (${dto.email})`);
   }
 
   // ─── Email Verification ───────────────────────────────────────────────────
@@ -81,6 +87,7 @@ export class AuthService {
    * Validates the OTP and marks the user's email as verified.
    */
   async verifyEmail(dto: VerifyOtpDto): Promise<void> {
+    this.logger.debug(`verifyEmail: start (${dto.email})`);
     const user = await this.requireUser(dto.email);
 
     await this.validateOtp(dto.email, dto.otp, OtpPurpose.EMAIL_VERIFICATION);
@@ -90,6 +97,7 @@ export class AuthService {
       dto.email,
       OtpPurpose.EMAIL_VERIFICATION,
     );
+    this.logger.log(`verifyEmail: email verified (${dto.email})`);
   }
 
   /**
@@ -97,13 +105,16 @@ export class AuthService {
    * Throws ConflictException if the email is already verified.
    */
   async resendVerificationOtp(email: string): Promise<void> {
+    this.logger.debug(`resendVerificationOtp: start (${email})`);
     const user = await this.requireUser(email);
 
     if (user.isEmailVerified) {
+      this.logger.warn(`resendVerificationOtp: email already verified (${email})`);
       throw new ConflictException('This email address is already verified.');
     }
 
     await this.issueAndSendOtp(email, OtpPurpose.EMAIL_VERIFICATION);
+    this.logger.log(`resendVerificationOtp: verification OTP re-sent (${email})`);
   }
 
   // ─── Password-based Login ─────────────────────────────────────────────────
@@ -113,15 +124,20 @@ export class AuthService {
    * Returns a JWT access/refresh token pair on success.
    */
   async login(dto: LoginDto): Promise<JwtTokenPair> {
+    this.logger.debug(`login: start (${dto.email})`);
     const user = await this.requireUser(dto.email);
     await this.requireEmailVerified(user);
 
+    this.logger.debug(`login: comparing password (${dto.email})`);
     const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordMatch) {
+      this.logger.warn(`login: invalid password (${dto.email})`);
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    return this.issueTokenPair(user);
+    const tokens = await this.issueTokenPair(user);
+    this.logger.log(`login: success (userId=${user.id})`);
+    return tokens;
   }
 
   // ─── Passwordless OTP Login ───────────────────────────────────────────────
@@ -130,16 +146,19 @@ export class AuthService {
    * Step 1: Sends a one-time login OTP to the registered email.
    */
   async requestLoginOtp(email: string): Promise<void> {
+    this.logger.debug(`requestLoginOtp: start (${email})`);
     const user = await this.requireUser(email);
     await this.requireEmailVerified(user);
 
     await this.issueAndSendOtp(email, OtpPurpose.LOGIN);
+    this.logger.log(`requestLoginOtp: login OTP sent (${email})`);
   }
 
   /**
    * Step 2: Validates the login OTP and returns a JWT token pair.
    */
   async loginWithOtp(dto: LoginWithOtpDto): Promise<JwtTokenPair> {
+    this.logger.debug(`loginWithOtp: start (${dto.email})`);
     const user = await this.requireUser(dto.email);
     await this.requireEmailVerified(user);
 
@@ -147,7 +166,9 @@ export class AuthService {
 
     await this.otpRepository.deleteByEmailAndPurpose(dto.email, OtpPurpose.LOGIN);
 
-    return this.issueTokenPair(user);
+    const tokens = await this.issueTokenPair(user);
+    this.logger.log(`loginWithOtp: success (userId=${user.id})`);
+    return tokens;
   }
 
   // ─── Token Refresh ────────────────────────────────────────────────────────
@@ -157,6 +178,7 @@ export class AuthService {
    * Throws UnauthorizedException if the token is invalid, expired, or revoked.
    */
   async refreshTokens(refreshToken: string): Promise<JwtTokenPair> {
+    this.logger.debug('refreshTokens: verifying refresh token signature');
     let payload: JwtPayload;
 
     try {
@@ -164,22 +186,27 @@ export class AuthService {
         secret: this.jwtRefreshSecret,
       });
     } catch {
+      this.logger.warn('refreshTokens: refresh token invalid or expired');
       throw new UnauthorizedException('Refresh token is invalid or expired.');
     }
 
     const user = await this.userRepository.findById(payload.sub);
     if (!user || !user.refreshTokenHash) {
+      this.logger.warn(`refreshTokens: session revoked, no stored token (userId=${payload.sub})`);
       throw new UnauthorizedException('Session has been revoked. Please log in again.');
     }
 
     const tokenMatch = await bcrypt.compare(refreshToken, user.refreshTokenHash);
     if (!tokenMatch) {
       // Possible token reuse — revoke session immediately.
+      this.logger.warn(`refreshTokens: token reuse detected, revoking session (userId=${user.id})`);
       await this.userRepository.setRefreshTokenHash(user.id, null);
       throw new UnauthorizedException('Refresh token has already been used. Please log in again.');
     }
 
-    return this.issueTokenPair(user);
+    const tokens = await this.issueTokenPair(user);
+    this.logger.log(`refreshTokens: token pair rotated (userId=${user.id})`);
+    return tokens;
   }
 
   // ─── Logout ───────────────────────────────────────────────────────────────
@@ -188,7 +215,9 @@ export class AuthService {
    * Revokes the stored refresh token for the given user id.
    */
   async logout(userId: string): Promise<void> {
+    this.logger.debug(`logout: revoking refresh token (userId=${userId})`);
     await this.userRepository.setRefreshTokenHash(userId, null);
+    this.logger.log(`logout: session revoked (userId=${userId})`);
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────
@@ -196,6 +225,7 @@ export class AuthService {
   private async requireUser(email: string): Promise<IUserRecord> {
     const user = await this.userRepository.findByEmail(email);
     if (!user) {
+      this.logger.warn(`requireUser: no account found (${email})`);
       throw new NotFoundException('No account found for this email address.');
     }
     return user;
@@ -203,6 +233,7 @@ export class AuthService {
 
   private async requireEmailVerified(user: IUserRecord): Promise<void> {
     if (!user.isEmailVerified) {
+      this.logger.warn(`requireEmailVerified: email not verified (${user.email})`);
       throw new ForbiddenException(
         'Email address is not verified. Please verify your email first.',
       );
@@ -222,8 +253,11 @@ export class AuthService {
       Date.now() + this.otpExpiryMinutes * 60 * 1000,
     );
 
+    // Note: the plain OTP is intentionally never logged — only the fact one was issued.
+    this.logger.debug(`issueAndSendOtp: persisting ${purpose} OTP, expires ${expiresAt.toISOString()} (${email})`);
     await this.otpRepository.upsert({ email, otpHash, purpose, expiresAt });
     await this.mailService.sendOtp(email, otp, this.otpExpiryMinutes);
+    this.logger.debug(`issueAndSendOtp: ${purpose} OTP emailed (${email})`);
   }
 
   /**
@@ -235,16 +269,20 @@ export class AuthService {
     otp: string,
     purpose: OtpPurpose,
   ): Promise<void> {
+    this.logger.debug(`validateOtp: looking up latest ${purpose} OTP (${email})`);
     const record = await this.otpRepository.findLatest(email, purpose);
 
     if (!record || record.expiresAt < new Date()) {
+      this.logger.warn(`validateOtp: ${purpose} OTP missing or expired (${email})`);
       throw new UnprocessableEntityException('OTP has expired. Please request a new one.');
     }
 
     const isValid = await bcrypt.compare(otp, record.otpHash);
     if (!isValid) {
+      this.logger.warn(`validateOtp: ${purpose} OTP mismatch (${email})`);
       throw new UnprocessableEntityException('Invalid OTP. Please check the code and try again.');
     }
+    this.logger.debug(`validateOtp: ${purpose} OTP valid (${email})`);
   }
 
   /**
@@ -271,6 +309,7 @@ export class AuthService {
 
     const refreshTokenHash = await bcrypt.hash(refreshToken, BCRYPT_ROUNDS);
     await this.userRepository.setRefreshTokenHash(user.id, refreshTokenHash);
+    this.logger.debug(`issueTokenPair: signed and stored token pair (userId=${user.id})`);
 
     return { accessToken, refreshToken };
   }

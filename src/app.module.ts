@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
+import { HttpLoggerMiddleware } from './shared/logging/http-logger.middleware';
 import { MongooseDatabaseModule } from './shared/mongoose/mongoose.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -30,4 +31,9 @@ import { SessionModule } from './session/session.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // Register the HTTP request logger for every route so each API call is traced.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(HttpLoggerMiddleware).forRoutes('*');
+  }
+}
