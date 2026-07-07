@@ -16,7 +16,13 @@ import { SessionModule } from './session/session.module';
     // ─── Config ─────────────────────────────────────────────────────────
     // isGlobal: true makes ConfigService available everywhere without
     // re-importing ConfigModule in every feature module.
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: [
+        '/secrets/DEV-PORTVILLA-BE-SECRETS',
+        '.env',
+      ],
+    }),
 
     // ─── Database ────────────────────────────────────────────────────────
     MongooseDatabaseModule,
