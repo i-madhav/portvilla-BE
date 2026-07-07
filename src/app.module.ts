@@ -19,7 +19,7 @@ import { SessionModule } from './session/session.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [
-        '/secrets/DEV-PORTVILLA-BE-SECRETS',
+        '/etc/secrets/portvilla-be/.env',
         '.env',
       ],
     }),
