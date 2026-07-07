@@ -28,5 +28,5 @@ COPY --from=builder /app/package.json ./package.json
 # Uploads directory for persistent file storage (mounted as a volume in compose)
 
 RUN mkdir -p uploads
-EXPOSE 3000
+EXPOSE 8080
 CMD ["node", "dist/main"]
