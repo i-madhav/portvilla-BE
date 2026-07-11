@@ -81,8 +81,8 @@ async function bootstrap(): Promise<void> {
   });
 
   const port = Number(process.env.PORT ?? 3000);
-  await app.listen(port, '0.0.0.0');
-  console.log(`Swagger docs available at http://0.0.0.0:${port}/docs`);
+  await app.listen(port);
+  console.log(`Swagger docs available at http://localhost:${port}/docs`);
 
 }
 
