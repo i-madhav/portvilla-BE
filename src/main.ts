@@ -19,7 +19,8 @@ function resolveLogLevels(): LogLevel[] {
 
   const explicit = process.env.LOG_LEVEL?.toLowerCase();
   if (explicit === 'debug' || explicit === 'verbose') return verbose;
-  if (explicit === 'log' || explicit === 'warn' || explicit === 'error') return quiet;
+  if (explicit === 'log' || explicit === 'warn' || explicit === 'error')
+    return quiet;
 
   return process.env.NODE_ENV === 'development' ? verbose : quiet;
 }
@@ -27,6 +28,16 @@ function resolveLogLevels(): LogLevel[] {
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: resolveLogLevels(),
+    // Preserve the untouched request body so the LiveKit webhook can verify its
+    // signature against the exact bytes that were signed.
+    rawBody: true,
+  });
+
+  // LiveKit posts webhooks as `application/webhook+json`, which the default JSON
+  // parser ignores — leaving `rawBody` empty and signature verification unable to
+  // run. Register the JSON parser for that content type too (rawBody is preserved).
+  app.useBodyParser('json', {
+    type: ['application/json', 'application/webhook+json'],
   });
 
   // ─── Static file serving ────────────────────────────────────────────────
@@ -40,7 +51,9 @@ async function bootstrap(): Promise<void> {
   // (comma-separated, e.g. "https://app.portvilla.com,https://admin.portvilla.com").
   const isDevelopment = process.env.NODE_ENV === 'development';
   app.enableCors({
-    origin: isDevelopment ? '*' : (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean),
+    origin: isDevelopment
+      ? '*'
+      : (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: !isDevelopment, // credentials + wildcard origin is rejected by browsers
@@ -52,9 +65,9 @@ async function bootstrap(): Promise<void> {
   // ─── Validation ─────────────────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,       // strip unknown properties
+      whitelist: true, // strip unknown properties
       forbidNonWhitelisted: true,
-      transform: true,       // auto-transform payloads to DTO class instances
+      transform: true, // auto-transform payloads to DTO class instances
       transformOptions: { enableImplicitConversion: true },
     }),
   );
@@ -64,12 +77,12 @@ async function bootstrap(): Promise<void> {
     .setTitle('Portvilla API')
     .setDescription(
       'REST API for the Portvilla platform.\n\n' +
-      '**Authentication flow:**\n' +
-      '1. `POST /auth/register` — create account (verification OTP dispatched)\n' +
-      '2. `POST /auth/verify-email` — verify email with OTP\n' +
-      '3. `POST /auth/login` — obtain access + refresh tokens\n' +
-      '4. `POST /auth/refresh` — rotate tokens when access token expires\n' +
-      '5. `POST /auth/logout` — revoke the refresh token',
+        '**Authentication flow:**\n' +
+        '1. `POST /auth/register` — create account (verification OTP dispatched)\n' +
+        '2. `POST /auth/verify-email` — verify email with OTP\n' +
+        '3. `POST /auth/login` — obtain access + refresh tokens\n' +
+        '4. `POST /auth/refresh` — rotate tokens when access token expires\n' +
+        '5. `POST /auth/logout` — revoke the refresh token',
     )
     .setVersion('1.0')
     .addBearerAuth()
@@ -83,7 +96,6 @@ async function bootstrap(): Promise<void> {
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
   console.log(`Swagger docs available at http://localhost:${port}/docs`);
-
 }
 
 bootstrap().catch((error) => {

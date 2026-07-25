@@ -1,5 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 import { HttpLoggerMiddleware } from './shared/logging/http-logger.middleware';
 import { MongooseDatabaseModule } from './shared/mongoose/mongoose.module';
@@ -18,11 +20,13 @@ import { SessionModule } from './session/session.module';
     // re-importing ConfigModule in every feature module.
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [
-        '/etc/secrets/portvilla-be/.env',
-        '.env',
-      ],
+      envFilePath: ['/etc/secrets/portvilla-be/.env', '.env'],
     }),
+
+    // ─── Rate limiting ───────────────────────────────────────────────────
+    // Generous global default; sensitive public routes tighten it per-handler
+      
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
 
     // ─── Database ────────────────────────────────────────────────────────
     MongooseDatabaseModule,
@@ -35,7 +39,7 @@ import { SessionModule } from './session/session.module';
     SessionModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   // Register the HTTP request logger for every route so each API call is traced.

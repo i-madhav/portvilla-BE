@@ -19,7 +19,7 @@ import {
   imports: [
     MongooseModule.forFeature([
       {
-        name:   DB_MODEL_REGISTRY.SESSION.MODEL_TOKEN as DbModelToken,
+        name: DB_MODEL_REGISTRY.SESSION.MODEL_TOKEN as DbModelToken,
         schema: SessionSchema,
       },
     ]),
@@ -30,7 +30,7 @@ import {
   controllers: [SessionController],
   providers: [
     SessionService,
-    { provide: SESSION_REPOSITORY, useClass: SessionRepository }
+    { provide: SESSION_REPOSITORY, useClass: SessionRepository },
   ],
 })
 export class SessionModule {}

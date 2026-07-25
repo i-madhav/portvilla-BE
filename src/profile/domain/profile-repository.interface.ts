@@ -50,6 +50,16 @@ export interface IProfileRepository {
   findByUsername(username: string): Promise<IProfileRecord | null>;
   existsByUserId(userId: string): Promise<boolean>;
   existsByUsername(username: string): Promise<boolean>;
-  update(profileId: string, fields: Record<string, unknown>): Promise<IProfileRecord>;
+  update(
+    profileId: string,
+    fields: Record<string, unknown>,
+  ): Promise<IProfileRecord>;
   deleteByUserId(userId: string): Promise<void>;
+
+  /**
+   * Returns the stored bcrypt hash of a profile's access password, or null when
+   * the profile does not exist or has no password. Kept off IProfileRecord so
+   * the hash never rides along on ordinary reads; only the unlock flow asks for it.
+   */
+  getProtectedPasswordHash(username: string): Promise<string | null>;
 }

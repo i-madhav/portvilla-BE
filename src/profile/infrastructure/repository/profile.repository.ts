@@ -6,7 +6,10 @@ import {
   IProfileRepository,
   CreateProfileData,
 } from '../../domain/profile-repository.interface';
-import type { IProfileRecord, ProfileDocument } from '../../domain/profile.interface';
+import type {
+  IProfileRecord,
+  ProfileDocument,
+} from '../../domain/profile.interface';
 
 export const PROFILE_MODEL = 'Profile';
 
@@ -41,7 +44,9 @@ export class ProfileRepository implements IProfileRepository {
 
   async findByUserId(userId: string): Promise<IProfileRecord | null> {
     if (!Types.ObjectId.isValid(userId)) return null;
-    const doc = await this.profileModel.findOne({ userId: new Types.ObjectId(userId) }).exec();
+    const doc = await this.profileModel
+      .findOne({ userId: new Types.ObjectId(userId) })
+      .exec();
     return doc ? this.toRecord(doc) : null;
   }
 
@@ -67,9 +72,24 @@ export class ProfileRepository implements IProfileRepository {
     return count > 0;
   }
 
-  async update(profileId: string, fields: Record<string, unknown>): Promise<IProfileRecord> {
+  async getProtectedPasswordHash(username: string): Promise<string | null> {
     const doc = await this.profileModel
-      .findByIdAndUpdate(profileId, { $set: fields }, { returnDocument: 'after', runValidators: true })
+      .findOne({ username: username.toLowerCase() })
+      .select('protectedPassword')
+      .exec();
+    return doc?.protectedPassword ?? null;
+  }
+
+  async update(
+    profileId: string,
+    fields: Record<string, unknown>,
+  ): Promise<IProfileRecord> {
+    const doc = await this.profileModel
+      .findByIdAndUpdate(
+        profileId,
+        { $set: fields },
+        { returnDocument: 'after', runValidators: true },
+      )
       .exec();
 
     if (!doc) throw new Error(`Profile ${profileId} not found during update`);
@@ -78,7 +98,9 @@ export class ProfileRepository implements IProfileRepository {
 
   async deleteByUserId(userId: string): Promise<void> {
     if (!Types.ObjectId.isValid(userId)) return;
-    await this.profileModel.deleteOne({ userId: new Types.ObjectId(userId) }).exec();
+    await this.profileModel
+      .deleteOne({ userId: new Types.ObjectId(userId) })
+      .exec();
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────

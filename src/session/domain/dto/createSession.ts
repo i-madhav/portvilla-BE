@@ -12,12 +12,14 @@ export class CreateSessionDto {
 
   @ApiPropertyOptional({
     example: 'johndoe',
-    description: 'Required when type is "user". Must be 3–30 lowercase alphanumeric characters.',
+    description:
+      'Required when type is "user". Must be 3–30 lowercase alphanumeric characters.',
   })
   @ValidateIf((o: CreateSessionDto) => o.type === SessionType.USER)
   @IsString()
   @Matches(/^[a-z0-9_-]{3,30}$/, {
-    message: 'profileUsername must be 3–30 lowercase alphanumeric, underscore, or hyphen characters.',
+    message:
+      'profileUsername must be 3–30 lowercase alphanumeric, underscore, or hyphen characters.',
   })
   profileUsername?: string;
 }

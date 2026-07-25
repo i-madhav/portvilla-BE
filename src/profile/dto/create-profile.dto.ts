@@ -13,6 +13,10 @@ import {
 import { Type } from 'class-transformer';
 
 import { ProfileVisibility } from '../domain/profile.interface';
+import {
+  USERNAME_REGEX,
+  USERNAME_RULE_MESSAGE,
+} from '../domain/username.rules';
 import { IdentityDto } from './sections/identity.dto';
 import { WorkEntryDto } from './sections/works.dto';
 import { TimelineEntryDto } from './sections/timeline.dto';
@@ -36,14 +40,13 @@ export class CreateProfileDto {
   })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/, {
-    message:
-      'username must be 3-30 characters, contain only lowercase letters, numbers, and hyphens, ' +
-      'and cannot start or end with a hyphen.',
-  })
+  @Matches(USERNAME_REGEX, { message: USERNAME_RULE_MESSAGE })
   username!: string;
 
-  @ApiPropertyOptional({ enum: ProfileVisibility, default: ProfileVisibility.PUBLIC })
+  @ApiPropertyOptional({
+    enum: ProfileVisibility,
+    default: ProfileVisibility.PUBLIC,
+  })
   @IsEnum(ProfileVisibility)
   @IsOptional()
   visibility?: ProfileVisibility;
@@ -52,7 +55,9 @@ export class CreateProfileDto {
     example: 'mySecret123',
     description: 'Required when visibility is PROTECTED. Minimum 6 characters.',
   })
-  @ValidateIf((o: CreateProfileDto) => o.visibility === ProfileVisibility.PROTECTED)
+  @ValidateIf(
+    (o: CreateProfileDto) => o.visibility === ProfileVisibility.PROTECTED,
+  )
   @IsString()
   @MinLength(6)
   @IsOptional()

@@ -5,29 +5,48 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Patch,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/interfaces/jwt.interface';
 
 import { ProfileService } from './profile.service';
-import { ProfileOwnerGuard, type ProfileRequest } from './guards/profile-owner.guard';
+import {
+  ProfileOwnerGuard,
+  type ProfileRequest,
+} from './guards/profile-owner.guard';
 
 import { ProfileDataResponseDto } from './dto/profile-data-response.dto';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { resumeUploadConfig, profileImageUploadConfig } from './upload/upload.config';
+import {
+  UsernameAvailabilityDto,
+  UsernameAvailabilityQueryDto,
+} from './dto/username-availability.dto';
+import { PublicProfileResponseDto } from './dto/public-profile-response.dto';
+import { UnlockProfileDto } from './dto/unlock-profile.dto';
+import { ResumeUploadResponseDto } from './dto/resume-upload-response.dto';
+import {
+  resumeUploadConfig,
+  profileImageUploadConfig,
+} from './upload/upload.config';
 
 import {
   CreateProfileEndpoint,
+  CheckUsernameEndpoint,
+  GetPublicProfileEndpoint,
+  UnlockPublicProfileEndpoint,
   GetProfileDataEndpoint,
   UploadResumeEndpoint,
   UploadProfileImageEndpoint,
@@ -64,11 +83,49 @@ export class ProfileController {
     return this.profileService.createProfile(user.sub, dto);
   }
 
+  // Public — no guard. A literal path, declared before any ':username' route so
+  // it can never be shadowed by a param match.
+  @Get('profiles/username-available')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @CheckUsernameEndpoint()
+  checkUsername(
+    @Query() query: UsernameAvailabilityQueryDto,
+  ): Promise<UsernameAvailabilityDto> {
+    return this.profileService.checkUsernameAvailability(query.username);
+  }
+
+  // Public — the visitor-facing portfolio. `public/` prefix keeps `:username`
+  // from colliding with the literal `me` / `username-available` routes.
+  @Get('profiles/public/:username')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @GetPublicProfileEndpoint()
+  getPublicProfile(
+    @Param('username') username: string,
+  ): Promise<PublicProfileResponseDto> {
+    return this.profileService.getPublicProfile(username);
+  }
+
+  // Tight limit: this is the brute-force surface for a protected profile's password.
+  @Post('profiles/public/:username/unlock')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UnlockPublicProfileEndpoint()
+  unlockPublicProfile(
+    @Param('username') username: string,
+    @Body() dto: UnlockProfileDto,
+  ): Promise<PublicProfileResponseDto> {
+    return this.profileService.unlockPublicProfile(username, dto.password);
+  }
+
   @Get('profiles/me')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @GetProfileDataEndpoint()
-  getProfileData(@CurrentUser() user: JwtPayload): Promise<ProfileDataResponseDto> {
+  getProfileData(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ProfileDataResponseDto> {
     return this.profileService.getProfileData(user.sub);
   }
 
@@ -91,7 +148,7 @@ export class ProfileController {
   uploadResume(
     @ProfileFromGuard() profile: IProfileRecord,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<ProfileDataResponseDto> {
+  ): Promise<ResumeUploadResponseDto> {
     return this.profileService.uploadResume(profile.id, file);
   }
 

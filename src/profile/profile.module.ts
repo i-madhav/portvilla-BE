@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AuthModule } from '../auth/auth.module';
+import { LlmModule } from '../llm/llm.module';
 
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
@@ -17,6 +18,7 @@ import { ProfileOwnerGuard } from './guards/profile-owner.guard';
 @Module({
   imports: [
     AuthModule,
+    LlmModule,
     MongooseModule.forFeature([{ name: PROFILE_MODEL, schema: ProfileSchema }]),
   ],
   controllers: [ProfileController],
@@ -25,6 +27,6 @@ import { ProfileOwnerGuard } from './guards/profile-owner.guard';
     { provide: PROFILE_REPOSITORY, useClass: ProfileRepository },
     ProfileOwnerGuard,
   ],
-  exports: [PROFILE_REPOSITORY],
+  exports: [PROFILE_REPOSITORY, ProfileOwnerGuard],
 })
 export class ProfileModule {}
