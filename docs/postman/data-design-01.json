@@ -1,0 +1,3113 @@
+{
+    "openapi": "3.0.0",
+    "paths": {
+        "/api/v1": {
+            "get": {
+                "operationId": "AppController_getHello",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                },
+                "tags": [
+                    "App"
+                ]
+            }
+        },
+        "/api/v1/auth/register": {
+            "post": {
+                "description": "Creates a new user account with the supplied email and password. A 6-digit one-time password (OTP) is sent to the provided email address. The account cannot be used to log in until the email is verified via **POST /auth/verify-email**.",
+                "operationId": "AuthController_register",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Account created successfully. Verification OTP dispatched.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "One or more request fields failed validation."
+                    },
+                    "409": {
+                        "description": "An account with this email address already exists."
+                    }
+                },
+                "summary": "Register a new user",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/v1/auth/verify-email": {
+            "post": {
+                "description": "Validates the 6-digit OTP sent to the user's email address. On success the account is marked as verified and can be used to log in. OTPs expire after **15 minutes**.",
+                "operationId": "AuthController_verifyEmail",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/VerifyOtpDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Email verified successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "One or more request fields failed validation."
+                    },
+                    "404": {
+                        "description": "No account found for the given email address."
+                    },
+                    "422": {
+                        "description": "OTP is invalid or has expired."
+                    }
+                },
+                "summary": "Verify email address",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/v1/auth/resend-otp": {
+            "post": {
+                "description": "Generates a new 6-digit OTP and emails it to the specified address. Any previously issued OTP for that email is invalidated. Only valid for accounts that are **not yet verified**.",
+                "operationId": "AuthController_resendOtp",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendOtpDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "New OTP dispatched.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "One or more request fields failed validation."
+                    },
+                    "404": {
+                        "description": "No account found for the given email address."
+                    },
+                    "409": {
+                        "description": "Email is already verified; no OTP is needed."
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded. Please wait before retrying."
+                    }
+                },
+                "summary": "Resend email-verification OTP",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/v1/auth/login": {
+            "post": {
+                "description": "Validates credentials and returns a short-lived **access token** (15 min) and a long-lived **refresh token** (7 days). The email address must be verified before login is permitted.",
+                "operationId": "AuthController_login",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "One or more request fields failed validation."
+                    },
+                    "401": {
+                        "description": "The provided credentials are invalid or the token has expired."
+                    },
+                    "403": {
+                        "description": "Email address has not been verified."
+                    }
+                },
+                "summary": "Login with email and password",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/v1/auth/login/otp/request": {
+            "post": {
+                "description": "Sends a 6-digit OTP to the registered email address. Complete the login by calling **POST /auth/login/otp** with the email and the received OTP. OTPs expire after **15 minutes**.",
+                "operationId": "AuthController_requestLoginOtp",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendOtpDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login OTP dispatched.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "One or more request fields failed validation."
+                    },
+                    "403": {
+                        "description": "Email address has not been verified."
+                    },
+                    "404": {
+                        "description": "No account found for the given email address."
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded. Please wait before retrying."
+                    }
+                },
+                "summary": "Request a login OTP (passwordless — step 1)",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/v1/auth/login/otp": {
+            "post": {
+                "description": "Validates the 6-digit OTP previously sent to the email address and, on success, returns a JWT access/refresh pair identical to the password-based login response.",
+                "operationId": "AuthController_loginWithOtp",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginWithOtpDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OTP verified. Login successful.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "One or more request fields failed validation."
+                    },
+                    "404": {
+                        "description": "No account found for the given email address."
+                    },
+                    "422": {
+                        "description": "OTP is invalid or has expired."
+                    }
+                },
+                "summary": "Login with OTP (passwordless — step 2)",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/v1/auth/refresh": {
+            "post": {
+                "description": "Exchanges a valid refresh token for a brand-new access/refresh pair. The old refresh token is invalidated (rotation). If the user has logged out or the token has been revoked, a **401 Unauthorized** is returned.",
+                "operationId": "AuthController_refresh",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RefreshTokenDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tokens refreshed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "One or more request fields failed validation."
+                    },
+                    "401": {
+                        "description": "The provided credentials are invalid or the token has expired."
+                    }
+                },
+                "summary": "Refresh access token",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "description": "Revokes the refresh token stored for the current user. The client should discard both the access and refresh tokens. Requires a valid Bearer access token in the `Authorization` header.",
+                "operationId": "AuthController_logout",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Logged out successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The provided credentials are invalid or the token has expired."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Logout",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/v1/users/me": {
+            "get": {
+                "description": "Returns the account record of the currently authenticated user. Sensitive fields (passwordHash, refreshTokenHash) are never included.",
+                "operationId": "UsersController_getMe",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "User account retrieved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "404": {
+                        "description": "The user associated with this token no longer exists."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get current user account",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/api/v1/profiles": {
+            "post": {
+                "description": "Creates the profile document for the authenticated user. Can only be called once — returns 409 if a profile already exists or the username is taken.",
+                "operationId": "ProfileController_createProfile",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateProfileDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Profile created successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProfileDataResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error."
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "409": {
+                        "description": "Profile already exists or username is taken/reserved."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Create profile (onboarding)",
+                "tags": [
+                    "Profile"
+                ]
+            }
+        },
+        "/api/v1/profiles/username-available": {
+            "get": {
+                "description": "Public. Returns whether a username can be claimed, with a structured reason (`taken` | `reserved` | `invalid`) when it cannot. A malformed candidate returns `available: false, reason: \"invalid\"` rather than a 400.",
+                "operationId": "ProfileController_checkUsername",
+                "parameters": [
+                    {
+                        "name": "username",
+                        "required": true,
+                        "in": "query",
+                        "description": "Candidate username to check.",
+                        "schema": {
+                            "example": "jane-doe",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Availability result.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UsernameAvailabilityDto"
+                                }
+                            }
+                        }
+                    }
+                },
+                "summary": "Check username availability",
+                "tags": [
+                    "Profile"
+                ]
+            }
+        },
+        "/api/v1/profiles/public/{username}": {
+            "get": {
+                "description": "Public. Returns the allowlisted public profile. A private profile returns 404 (indistinguishable from a nonexistent one). A password-protected profile returns 401 with `{ protected: true }` and no body — unlock via POST /profiles/public/:username/unlock.",
+                "operationId": "ProfileController_getPublicProfile",
+                "parameters": [
+                    {
+                        "name": "username",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Public profile.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicProfileResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Profile is password-protected."
+                    },
+                    "404": {
+                        "description": "No public profile at this username."
+                    }
+                },
+                "summary": "Get a public profile by username",
+                "tags": [
+                    "Profile"
+                ]
+            }
+        },
+        "/api/v1/profiles/public/{username}/unlock": {
+            "post": {
+                "description": "Public. Exchanges the access password for the profile body. Wrong password returns 401.",
+                "operationId": "ProfileController_unlockPublicProfile",
+                "parameters": [
+                    {
+                        "name": "username",
+                        "required": true,
+                        "in": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UnlockProfileDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Public profile.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PublicProfileResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Incorrect password."
+                    },
+                    "404": {
+                        "description": "No public profile at this username."
+                    }
+                },
+                "summary": "Unlock a password-protected profile",
+                "tags": [
+                    "Profile"
+                ]
+            }
+        },
+        "/api/v1/profiles/me": {
+            "get": {
+                "description": "Returns the full profile record for the authenticated user. The raw AI API key is never returned; `aiSettings.apiKeyConfigured` indicates whether one is saved.",
+                "operationId": "ProfileController_getProfileData",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Profile data retrieved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProfileDataResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "404": {
+                        "description": "Profile not found."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Get own profile data",
+                "tags": [
+                    "Profile"
+                ]
+            },
+            "patch": {
+                "description": "Send only the sections you want to update. Each section is independently optional. Within a section, individual fields are also optional. When `visibility.visibility` is `PROTECTED`, `visibility.protectedPassword` is required.",
+                "operationId": "ProfileController_updateProfile",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProfileDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Profile updated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProfileDataResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error (e.g. PROTECTED visibility without a password)."
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "404": {
+                        "description": "Profile not found."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Update profile (any combination of sections)",
+                "tags": [
+                    "Profile"
+                ]
+            },
+            "delete": {
+                "operationId": "ProfileController_deleteProfile",
+                "parameters": [],
+                "responses": {
+                    "204": {
+                        "description": "Profile deleted."
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "404": {
+                        "description": "Profile not found."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Delete own profile and all associated data",
+                "tags": [
+                    "Profile"
+                ]
+            }
+        },
+        "/api/v1/profiles/me/resume": {
+            "post": {
+                "description": "Stores the resume, extracts its text to identity.resume.parsedText, and — best effort — returns draft `suggestions` (skills / journey / work) for the user to review. Suggestions are never persisted by the server; `suggestions` is null when extraction is unavailable or the PDF carried no readable text.",
+                "operationId": "ProfileController_uploadResume",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "resume"
+                                ],
+                                "properties": {
+                                    "resume": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Resume uploaded; profile + optional draft suggestions returned.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ResumeUploadResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "File must be PDF, max 5 MB."
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "404": {
+                        "description": "Profile not found."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Upload resume PDF (max 5 MB)",
+                "tags": [
+                    "Profile"
+                ]
+            }
+        },
+        "/api/v1/profiles/me/profile-image": {
+            "post": {
+                "operationId": "ProfileController_uploadProfileImage",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "profileImage"
+                                ],
+                                "properties": {
+                                    "profileImage": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Profile image uploaded. URL saved to identity.primaryImage.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProfileDataResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "File must be JPEG/PNG/WebP, max 2 MB."
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "404": {
+                        "description": "Profile not found."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Upload profile image (JPEG / PNG / WebP, max 2 MB)",
+                "tags": [
+                    "Profile"
+                ]
+            }
+        },
+        "/api/v1/parser/github/{username}": {
+            "get": {
+                "description": "Returns a combined GitHub profile — user info, top repositories (by stars), current-year contribution count, per-repo language breakdown, detected tooling, detected frameworks, and README content — in a single response. Requires a valid Bearer access token.",
+                "operationId": "ParserController_getGithubProfile",
+                "parameters": [
+                    {
+                        "name": "username",
+                        "required": true,
+                        "in": "path",
+                        "description": "GitHub username",
+                        "schema": {
+                            "example": "torvalds",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GitHub profile fetched successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GithubProfileResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "404": {
+                        "description": "GitHub user not found."
+                    },
+                    "429": {
+                        "description": "GitHub API rate limit exceeded."
+                    },
+                    "503": {
+                        "description": "GitHub API is unreachable."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Fetch GitHub profile",
+                "tags": [
+                    "Parser"
+                ]
+            }
+        },
+        "/api/v1/parser/github/summarize": {
+            "post": {
+                "description": "Fetches the repo README + tech stack, then generates a 2-3 sentence project summary using the AI provider configured in the authenticated user's profile settings. The summary is returned but not persisted — the client decides where to save it.",
+                "operationId": "ParserController_summarizeRepo",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SummarizeRepoDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Summary generated successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SummarizeRepoResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid repo name format or AI provider API key not configured."
+                    },
+                    "401": {
+                        "description": "Access token is missing, invalid, or expired."
+                    },
+                    "404": {
+                        "description": "User profile not found."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Generate AI repo summary",
+                "tags": [
+                    "Parser"
+                ]
+            }
+        },
+        "/api/v1/session": {
+            "post": {
+                "description": "Provisions a unique LiveKit room, mints a participant access token with the correct agent dispatch baked into `RoomConfiguration`, persists the session record, and returns everything the frontend needs to call `session.start()`.\n\n**GUEST** — generates a random room name and identity; dispatches `welcome-agent`.\n\n**USER** — looks up the profile by `profileUsername`; dispatches `portfolio-agent` with `{ profile_id, profile_username }` in the LiveKit job metadata so the agent can fetch portfolio context on startup.",
+                "operationId": "SessionController_createSession",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateSessionDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Session created. Hand `participantToken` and `livekitUrl` to the LiveKit SDK.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SessionResponseDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error — e.g. `profileUsername` is missing or malformed for a USER session."
+                    },
+                    "404": {
+                        "description": "No profile found for the given `profileUsername`."
+                    },
+                    "500": {
+                        "description": "LiveKit token generation failed — check LIVEKIT_API_KEY / LIVEKIT_API_SECRET."
+                    }
+                },
+                "summary": "Create a LiveKit voice session",
+                "tags": [
+                    "Session"
+                ]
+            }
+        },
+        "/api/v1/session/webhook": {
+            "post": {
+                "description": "Public endpoint called by LiveKit. Authenticity is verified from the signed request body, not a bearer token. `participant_joined` (the minted visitor) transitions a session PENDING → ACTIVE; `room_finished` transitions it to ENDED and records endedAt. Unknown events and rooms are acknowledged with 200 so LiveKit does not retry.",
+                "operationId": "SessionController_handleWebhook",
+                "parameters": [
+                    {
+                        "name": "authorization",
+                        "required": true,
+                        "in": "header",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Event acknowledged."
+                    },
+                    "401": {
+                        "description": "Webhook signature verification failed."
+                    }
+                },
+                "summary": "LiveKit lifecycle webhook",
+                "tags": [
+                    "Session"
+                ]
+            }
+        },
+        "/api/v1/session/activity": {
+            "get": {
+                "description": "The authenticated owner's agent-conversation activity. Counts only sessions that reached ACTIVE/ENDED — never PENDING mints — so figures reflect real conversations. Activity is measured from the webhook deploy date onward; older sessions stay PENDING and are excluded.",
+                "operationId": "SessionController_getActivity",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Activity summary.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SessionActivityDto"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid access token."
+                    },
+                    "404": {
+                        "description": "No profile for this account."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer": []
+                    }
+                ],
+                "summary": "Agent conversation activity",
+                "tags": [
+                    "Session"
+                ]
+            }
+        }
+    },
+    "info": {
+        "title": "Portvilla API",
+        "description": "REST API for the Portvilla platform.\n\n**Authentication flow:**\n1. `POST /auth/register` — create account (verification OTP dispatched)\n2. `POST /auth/verify-email` — verify email with OTP\n3. `POST /auth/login` — obtain access + refresh tokens\n4. `POST /auth/refresh` — rotate tokens when access token expires\n5. `POST /auth/logout` — revoke the refresh token",
+        "version": "1.0",
+        "contact": {}
+    },
+    "tags": [],
+    "servers": [],
+    "components": {
+        "securitySchemes": {
+            "bearer": {
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "type": "http"
+            }
+        },
+        "schemas": {
+            "RegisterDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "example": "user@example.com",
+                        "description": "The email address for the new account."
+                    },
+                    "password": {
+                        "type": "string",
+                        "example": "P@ssw0rd!",
+                        "description": "Password must be 8–64 characters and contain at least one uppercase letter, one lowercase letter, one digit, and one special character.",
+                        "minLength": 8,
+                        "maxLength": 64
+                    }
+                },
+                "required": [
+                    "email",
+                    "password"
+                ]
+            },
+            "MessageResponseDto": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Operation completed successfully."
+                    }
+                },
+                "required": [
+                    "message"
+                ]
+            },
+            "VerifyOtpDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "example": "user@example.com"
+                    },
+                    "otp": {
+                        "type": "string",
+                        "example": "482931",
+                        "description": "The 6-digit OTP sent to the provided email address.",
+                        "minLength": 6,
+                        "maxLength": 6
+                    }
+                },
+                "required": [
+                    "email",
+                    "otp"
+                ]
+            },
+            "SendOtpDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "example": "user@example.com",
+                        "description": "Email address to send the OTP to."
+                    }
+                },
+                "required": [
+                    "email"
+                ]
+            },
+            "LoginDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "example": "user@example.com"
+                    },
+                    "password": {
+                        "type": "string",
+                        "example": "P@ssw0rd!",
+                        "minLength": 8
+                    }
+                },
+                "required": [
+                    "email",
+                    "password"
+                ]
+            },
+            "TokenResponseDto": {
+                "type": "object",
+                "properties": {
+                    "accessToken": {
+                        "type": "string",
+                        "description": "Short-lived JWT for authenticating API requests.",
+                        "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    },
+                    "refreshToken": {
+                        "type": "string",
+                        "description": "Long-lived JWT used to obtain a new access token.",
+                        "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    }
+                },
+                "required": [
+                    "accessToken",
+                    "refreshToken"
+                ]
+            },
+            "LoginWithOtpDto": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "example": "user@example.com"
+                    },
+                    "otp": {
+                        "type": "string",
+                        "example": "748201",
+                        "description": "The 6-digit OTP received via email.",
+                        "minLength": 6,
+                        "maxLength": 6
+                    }
+                },
+                "required": [
+                    "email",
+                    "otp"
+                ]
+            },
+            "RefreshTokenDto": {
+                "type": "object",
+                "properties": {
+                    "refreshToken": {
+                        "type": "string",
+                        "description": "The refresh token obtained at login.",
+                        "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    }
+                },
+                "required": [
+                    "refreshToken"
+                ]
+            },
+            "UserResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "6650a1b2c3d4e5f6a7b8c9d0"
+                    },
+                    "email": {
+                        "type": "string",
+                        "example": "user@example.com"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "admin"
+                        ],
+                        "example": "user"
+                    },
+                    "isEmailVerified": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "createdAt": {
+                        "format": "date-time",
+                        "type": "string",
+                        "example": "2026-05-30T00:00:00.000Z"
+                    },
+                    "updatedAt": {
+                        "format": "date-time",
+                        "type": "string",
+                        "example": "2026-05-30T00:00:00.000Z"
+                    }
+                },
+                "required": [
+                    "id",
+                    "email",
+                    "role",
+                    "isEmailVerified",
+                    "createdAt",
+                    "updatedAt"
+                ]
+            },
+            "IdentityDto": {
+                "type": "object",
+                "properties": {
+                    "entityType": {
+                        "type": "string",
+                        "enum": [
+                            "individual",
+                            "company",
+                            "product",
+                            "organization"
+                        ],
+                        "default": "individual"
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Jane Doe"
+                    },
+                    "tagline": {
+                        "type": "object",
+                        "example": "Full-stack engineer",
+                        "nullable": true
+                    },
+                    "bio": {
+                        "type": "object",
+                        "example": "Passionate engineer with 8 years of experience building distributed systems.",
+                        "nullable": true
+                    },
+                    "about": {
+                        "type": "object",
+                        "example": "I love building tools that make developers more productive...",
+                        "nullable": true
+                    },
+                    "primaryImage": {
+                        "type": "object",
+                        "example": "https://example.com/avatar.jpg",
+                        "nullable": true
+                    },
+                    "coverImage": {
+                        "type": "object",
+                        "example": "https://example.com/cover.jpg",
+                        "nullable": true
+                    },
+                    "location": {
+                        "type": "object",
+                        "example": "San Francisco, CA",
+                        "nullable": true
+                    },
+                    "foundedOrBorn": {
+                        "type": "object",
+                        "example": "1994",
+                        "nullable": true
+                    },
+                    "industry": {
+                        "type": "object",
+                        "example": "fintech",
+                        "nullable": true
+                    },
+                    "availability": {
+                        "type": "object",
+                        "example": "Open to work",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "entityType",
+                    "name"
+                ]
+            },
+            "ScreenshotDto": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "example": "https://example.com/screenshot.png"
+                    },
+                    "caption": {
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "url"
+                ]
+            },
+            "CodeSnippetDto": {
+                "type": "object",
+                "properties": {
+                    "language": {
+                        "type": "string",
+                        "example": "typescript"
+                    },
+                    "code": {
+                        "type": "string",
+                        "example": "const x = 1;"
+                    },
+                    "description": {
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "language",
+                    "code"
+                ]
+            },
+            "WorkEntryDto": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "project",
+                            "product",
+                            "case_study",
+                            "artwork",
+                            "research",
+                            "other"
+                        ],
+                        "default": "project"
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "PortVilla"
+                    },
+                    "tagline": {
+                        "type": "object",
+                        "example": "AI-powered portfolio platform",
+                        "nullable": true
+                    },
+                    "description": {
+                        "type": "string",
+                        "example": "A platform that generates interactive portfolios using AI."
+                    },
+                    "url": {
+                        "type": "object",
+                        "example": "https://portvilla.in",
+                        "nullable": true
+                    },
+                    "repoUrl": {
+                        "type": "object",
+                        "example": "https://github.com/user/portvilla",
+                        "nullable": true
+                    },
+                    "coverImage": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "screenshots": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ScreenshotDto"
+                        }
+                    },
+                    "technologies": {
+                        "example": [
+                            "NestJS",
+                            "React",
+                            "MongoDB"
+                        ],
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "tags": {
+                        "example": [
+                            "featured",
+                            "open-source"
+                        ],
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "active",
+                            "completed",
+                            "in-progress",
+                            "archived"
+                        ],
+                        "default": "completed"
+                    },
+                    "highlights": {
+                        "example": [
+                            "Reduced latency by 40%",
+                            "Onboarded 500 users in first week"
+                        ],
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "featured": {
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "codeSnippets": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CodeSnippetDto"
+                        }
+                    },
+                    "date": {
+                        "type": "object",
+                        "example": "2024-03",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "type",
+                    "name",
+                    "description"
+                ]
+            },
+            "TimelineEntryDto": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "career",
+                            "education",
+                            "certification",
+                            "award",
+                            "milestone",
+                            "product_launch",
+                            "other"
+                        ]
+                    },
+                    "date": {
+                        "type": "string",
+                        "example": "2022-01"
+                    },
+                    "endDate": {
+                        "type": "object",
+                        "example": "2024-06",
+                        "nullable": true
+                    },
+                    "label": {
+                        "type": "string",
+                        "example": "Senior Software Engineer at Acme Corp"
+                    },
+                    "organization": {
+                        "type": "object",
+                        "example": "Acme Corp",
+                        "nullable": true
+                    },
+                    "organizationLogoUrl": {
+                        "type": "object",
+                        "example": "https://example.com/logo.png",
+                        "nullable": true
+                    },
+                    "description": {
+                        "type": "object",
+                        "example": "Led platform team of 6 engineers.",
+                        "nullable": true
+                    },
+                    "highlight": {
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "url": {
+                        "type": "object",
+                        "example": "https://acme.com",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "category",
+                    "date",
+                    "label"
+                ]
+            },
+            "CapabilityEntryDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "example": "TypeScript"
+                    },
+                    "description": {
+                        "type": "object",
+                        "example": "Strongly typed JavaScript superset",
+                        "nullable": true
+                    },
+                    "icon": {
+                        "type": "object",
+                        "example": "Code2",
+                        "description": "Lucide icon name",
+                        "nullable": true
+                    },
+                    "category": {
+                        "type": "object",
+                        "example": "frontend",
+                        "nullable": true
+                    },
+                    "proficiency": {
+                        "type": "string",
+                        "enum": [
+                            "familiar",
+                            "proficient",
+                            "expert"
+                        ],
+                        "nullable": true
+                    },
+                    "yearsOfExperience": {
+                        "type": "object",
+                        "example": 5,
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "OfferingCtaDto": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "example": "Get started"
+                    },
+                    "url": {
+                        "type": "string",
+                        "example": "https://example.com/signup"
+                    }
+                },
+                "required": [
+                    "label",
+                    "url"
+                ]
+            },
+            "OfferingEntryDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "example": "Pro Plan"
+                    },
+                    "description": {
+                        "type": "string",
+                        "example": "Everything you need to grow your business."
+                    },
+                    "icon": {
+                        "type": "object",
+                        "example": "Zap",
+                        "description": "Lucide icon name",
+                        "nullable": true
+                    },
+                    "price": {
+                        "type": "object",
+                        "example": "$99/mo",
+                        "nullable": true
+                    },
+                    "features": {
+                        "example": [
+                            "Unlimited projects",
+                            "Priority support"
+                        ],
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "highlighted": {
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "tags": {
+                        "example": [
+                            "recommended",
+                            "popular"
+                        ],
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "cta": {
+                        "nullable": true,
+                        "type": "object",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/OfferingCtaDto"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "name",
+                    "description"
+                ]
+            },
+            "MetricEntryDto": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "example": "5k+"
+                    },
+                    "label": {
+                        "type": "string",
+                        "example": "GitHub Stars"
+                    },
+                    "description": {
+                        "type": "object",
+                        "example": "Across all open-source repositories.",
+                        "nullable": true
+                    },
+                    "icon": {
+                        "type": "object",
+                        "example": "Star",
+                        "description": "Lucide icon name",
+                        "nullable": true
+                    },
+                    "category": {
+                        "type": "object",
+                        "example": "open-source",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "value",
+                    "label"
+                ]
+            },
+            "TestimonialEntryDto": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "example": "Jane is one of the most impactful engineers I have worked with."
+                    },
+                    "author": {
+                        "type": "string",
+                        "example": "John Smith"
+                    },
+                    "role": {
+                        "type": "object",
+                        "example": "VP of Engineering",
+                        "nullable": true
+                    },
+                    "organization": {
+                        "type": "object",
+                        "example": "Acme Corp",
+                        "nullable": true
+                    },
+                    "avatarUrl": {
+                        "type": "object",
+                        "example": "https://example.com/avatar.jpg",
+                        "nullable": true
+                    },
+                    "relationship": {
+                        "type": "string",
+                        "enum": [
+                            "colleague",
+                            "manager",
+                            "client",
+                            "user",
+                            "investor",
+                            "other"
+                        ]
+                    },
+                    "featured": {
+                        "type": "boolean",
+                        "default": false
+                    }
+                },
+                "required": [
+                    "text",
+                    "author",
+                    "relationship"
+                ]
+            },
+            "TeamLinkDto": {
+                "type": "object",
+                "properties": {
+                    "platform": {
+                        "type": "string",
+                        "example": "github"
+                    },
+                    "url": {
+                        "type": "string",
+                        "example": "https://github.com/janedoe"
+                    }
+                },
+                "required": [
+                    "platform",
+                    "url"
+                ]
+            },
+            "TeamMemberEntryDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "example": "Jane Doe"
+                    },
+                    "role": {
+                        "type": "string",
+                        "example": "Co-founder & CTO"
+                    },
+                    "bio": {
+                        "type": "object",
+                        "example": "Jane leads all engineering at Acme.",
+                        "nullable": true
+                    },
+                    "avatarUrl": {
+                        "type": "object",
+                        "example": "https://example.com/avatar.jpg",
+                        "nullable": true
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TeamLinkDto"
+                        }
+                    }
+                },
+                "required": [
+                    "name",
+                    "role"
+                ]
+            },
+            "MediaEntryDto": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "example": "https://example.com/photo.jpg"
+                    },
+                    "caption": {
+                        "type": "object",
+                        "example": "Team offsite — Berlin 2024",
+                        "nullable": true
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "image",
+                            "video"
+                        ]
+                    },
+                    "category": {
+                        "type": "object",
+                        "example": "team",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "url",
+                    "type"
+                ]
+            },
+            "ContentEntryDto": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "blog",
+                            "talk",
+                            "paper",
+                            "video",
+                            "podcast",
+                            "course",
+                            "other"
+                        ]
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "Building AI Agents at Scale"
+                    },
+                    "url": {
+                        "type": "string",
+                        "example": "https://dev.to/janedoe/building-ai-agents"
+                    },
+                    "description": {
+                        "type": "object",
+                        "example": "A deep dive into orchestrating multiple LLM agents.",
+                        "nullable": true
+                    },
+                    "thumbnailUrl": {
+                        "type": "object",
+                        "example": "https://example.com/thumbnail.jpg",
+                        "nullable": true
+                    },
+                    "date": {
+                        "type": "object",
+                        "example": "2024-03",
+                        "nullable": true
+                    },
+                    "tags": {
+                        "example": [
+                            "AI",
+                            "LLM",
+                            "agents"
+                        ],
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "featured": {
+                        "type": "boolean",
+                        "default": false
+                    }
+                },
+                "required": [
+                    "type",
+                    "title",
+                    "url"
+                ]
+            },
+            "SocialLinkDto": {
+                "type": "object",
+                "properties": {
+                    "platform": {
+                        "type": "string",
+                        "example": "github"
+                    },
+                    "url": {
+                        "type": "string",
+                        "example": "https://github.com/janedoe"
+                    },
+                    "label": {
+                        "type": "object",
+                        "example": "GitHub",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "platform",
+                    "url"
+                ]
+            },
+            "SocialDto": {
+                "type": "object",
+                "properties": {
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SocialLinkDto"
+                        }
+                    },
+                    "email": {
+                        "type": "object",
+                        "example": "jane@example.com",
+                        "nullable": true
+                    },
+                    "phone": {
+                        "type": "object",
+                        "example": "+1-555-555-5555",
+                        "nullable": true
+                    },
+                    "calendarUrl": {
+                        "type": "object",
+                        "example": "https://cal.com/janedoe",
+                        "nullable": true
+                    }
+                }
+            },
+            "AiSettingsDto": {
+                "type": "object",
+                "properties": {
+                    "provider": {
+                        "type": "string",
+                        "enum": [
+                            "openai",
+                            "anthropic",
+                            "groq",
+                            "deepseek",
+                            "ollama",
+                            "custom"
+                        ],
+                        "example": "groq"
+                    },
+                    "apiKey": {
+                        "type": "object",
+                        "example": "sk-...",
+                        "nullable": true
+                    },
+                    "model": {
+                        "type": "object",
+                        "example": "llama3-70b-8192",
+                        "nullable": true
+                    },
+                    "baseUrl": {
+                        "type": "object",
+                        "example": "http://localhost:11434",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "provider"
+                ]
+            },
+            "CreateProfileDto": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "example": "jane-doe",
+                        "description": "URL-safe username for the shareable portfolio link (portvilla.in/username). 3-30 characters, lowercase letters, numbers, and hyphens only. Cannot start or end with a hyphen."
+                    },
+                    "visibility": {
+                        "type": "string",
+                        "enum": [
+                            "public",
+                            "private",
+                            "protected"
+                        ],
+                        "default": "public"
+                    },
+                    "protectedPassword": {
+                        "type": "string",
+                        "example": "mySecret123",
+                        "description": "Required when visibility is PROTECTED. Minimum 6 characters."
+                    },
+                    "identity": {
+                        "$ref": "#/components/schemas/IdentityDto"
+                    },
+                    "works": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/WorkEntryDto"
+                        }
+                    },
+                    "timeline": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TimelineEntryDto"
+                        }
+                    },
+                    "capabilities": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CapabilityEntryDto"
+                        }
+                    },
+                    "offerings": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OfferingEntryDto"
+                        }
+                    },
+                    "metrics": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MetricEntryDto"
+                        }
+                    },
+                    "testimonials": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TestimonialEntryDto"
+                        }
+                    },
+                    "team": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TeamMemberEntryDto"
+                        }
+                    },
+                    "media": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MediaEntryDto"
+                        }
+                    },
+                    "content": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ContentEntryDto"
+                        }
+                    },
+                    "social": {
+                        "$ref": "#/components/schemas/SocialDto"
+                    },
+                    "aiSettings": {
+                        "$ref": "#/components/schemas/AiSettingsDto"
+                    }
+                },
+                "required": [
+                    "username",
+                    "identity"
+                ]
+            },
+            "AiSettingsResponseDto": {
+                "type": "object",
+                "properties": {
+                    "provider": {
+                        "type": "string",
+                        "enum": [
+                            "openai",
+                            "anthropic",
+                            "groq",
+                            "deepseek",
+                            "ollama",
+                            "custom"
+                        ]
+                    },
+                    "apiKeyConfigured": {
+                        "type": "boolean",
+                        "description": "True if an API key has been saved."
+                    },
+                    "model": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "baseUrl": {
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "provider",
+                    "apiKeyConfigured",
+                    "model",
+                    "baseUrl"
+                ]
+            },
+            "AgentPersonaResponseDto": {
+                "type": "object",
+                "properties": {
+                    "agentName": {
+                        "type": "string",
+                        "example": "Alex"
+                    },
+                    "tone": {
+                        "type": "string",
+                        "enum": [
+                            "formal",
+                            "balanced",
+                            "casual"
+                        ]
+                    },
+                    "verbosity": {
+                        "type": "string",
+                        "enum": [
+                            "concise",
+                            "detailed"
+                        ]
+                    },
+                    "technicalDepth": {
+                        "type": "string",
+                        "enum": [
+                            "high",
+                            "medium",
+                            "low"
+                        ]
+                    },
+                    "speakingSpeed": {
+                        "type": "string",
+                        "enum": [
+                            "slow",
+                            "normal",
+                            "fast"
+                        ]
+                    },
+                    "voiceId": {
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "agentName",
+                    "tone",
+                    "verbosity",
+                    "technicalDepth",
+                    "speakingSpeed",
+                    "voiceId"
+                ]
+            },
+            "ProfileDataResponseDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "6650a1b2c3d4e5f6a7b8c9d0"
+                    },
+                    "userId": {
+                        "type": "string",
+                        "example": "6650a1b2c3d4e5f6a7b8c9d1"
+                    },
+                    "username": {
+                        "type": "string",
+                        "example": "jane-doe"
+                    },
+                    "visibility": {
+                        "type": "string",
+                        "enum": [
+                            "public",
+                            "private",
+                            "protected"
+                        ]
+                    },
+                    "identity": {
+                        "type": "object"
+                    },
+                    "works": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "timeline": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "capabilities": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "offerings": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "metrics": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "testimonials": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "team": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "media": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "content": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "social": {
+                        "type": "object"
+                    },
+                    "aiSettings": {
+                        "$ref": "#/components/schemas/AiSettingsResponseDto"
+                    },
+                    "agentPersona": {
+                        "$ref": "#/components/schemas/AgentPersonaResponseDto"
+                    },
+                    "createdAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "updatedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "userId",
+                    "username",
+                    "visibility",
+                    "identity",
+                    "works",
+                    "timeline",
+                    "capabilities",
+                    "offerings",
+                    "metrics",
+                    "testimonials",
+                    "team",
+                    "media",
+                    "content",
+                    "social",
+                    "aiSettings",
+                    "agentPersona",
+                    "createdAt",
+                    "updatedAt"
+                ]
+            },
+            "UsernameAvailabilityDto": {
+                "type": "object",
+                "properties": {
+                    "available": {
+                        "type": "boolean",
+                        "description": "Whether the username can be claimed."
+                    },
+                    "reason": {
+                        "type": "string",
+                        "nullable": true,
+                        "enum": [
+                            "taken",
+                            "reserved",
+                            "invalid"
+                        ],
+                        "description": "Why it is unavailable, or null when available."
+                    }
+                },
+                "required": [
+                    "available",
+                    "reason"
+                ]
+            },
+            "PublicIdentityDto": {
+                "type": "object",
+                "properties": {
+                    "entityType": {
+                        "type": "string",
+                        "enum": [
+                            "individual",
+                            "company",
+                            "product",
+                            "organization"
+                        ]
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "tagline": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "bio": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "about": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "primaryImage": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "coverImage": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "location": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "foundedOrBorn": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "industry": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "availability": {
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "entityType",
+                    "name",
+                    "tagline",
+                    "bio",
+                    "about",
+                    "primaryImage",
+                    "coverImage",
+                    "location",
+                    "foundedOrBorn",
+                    "industry",
+                    "availability"
+                ]
+            },
+            "PublicSocialDto": {
+                "type": "object",
+                "properties": {
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "calendarUrl": {
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "links",
+                    "calendarUrl"
+                ]
+            },
+            "PublicProfileResponseDto": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "example": "jane-doe"
+                    },
+                    "visibility": {
+                        "type": "string",
+                        "enum": [
+                            "public",
+                            "private",
+                            "protected"
+                        ]
+                    },
+                    "identity": {
+                        "$ref": "#/components/schemas/PublicIdentityDto"
+                    },
+                    "works": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "timeline": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "capabilities": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "offerings": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "metrics": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "testimonials": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "team": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "media": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "content": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "social": {
+                        "$ref": "#/components/schemas/PublicSocialDto"
+                    },
+                    "agentName": {
+                        "type": "string",
+                        "example": "Alex",
+                        "description": "The agent's display name — the only persona field exposed."
+                    }
+                },
+                "required": [
+                    "username",
+                    "visibility",
+                    "identity",
+                    "works",
+                    "timeline",
+                    "capabilities",
+                    "offerings",
+                    "metrics",
+                    "testimonials",
+                    "team",
+                    "media",
+                    "content",
+                    "social",
+                    "agentName"
+                ]
+            },
+            "UnlockProfileDto": {
+                "type": "object",
+                "properties": {
+                    "password": {
+                        "type": "string",
+                        "description": "The profile access password."
+                    }
+                },
+                "required": [
+                    "password"
+                ]
+            },
+            "UpdateIdentityDto": {
+                "type": "object",
+                "properties": {
+                    "entityType": {
+                        "type": "string",
+                        "enum": [
+                            "individual",
+                            "company",
+                            "product",
+                            "organization"
+                        ]
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Jane Doe"
+                    },
+                    "tagline": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "bio": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "about": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "primaryImage": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "coverImage": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "location": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "foundedOrBorn": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "industry": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "availability": {
+                        "type": "object",
+                        "nullable": true
+                    }
+                }
+            },
+            "UpdateAgentPersonaDto": {
+                "type": "object",
+                "properties": {
+                    "agentName": {
+                        "type": "string",
+                        "example": "Alex",
+                        "maxLength": 32
+                    },
+                    "tone": {
+                        "type": "string",
+                        "enum": [
+                            "formal",
+                            "balanced",
+                            "casual"
+                        ],
+                        "example": "balanced"
+                    },
+                    "verbosity": {
+                        "type": "string",
+                        "enum": [
+                            "concise",
+                            "detailed"
+                        ],
+                        "example": "concise"
+                    },
+                    "technicalDepth": {
+                        "type": "string",
+                        "enum": [
+                            "high",
+                            "medium",
+                            "low"
+                        ],
+                        "example": "medium"
+                    },
+                    "speakingSpeed": {
+                        "type": "string",
+                        "enum": [
+                            "slow",
+                            "normal",
+                            "fast"
+                        ],
+                        "example": "normal"
+                    },
+                    "voiceId": {
+                        "type": "object",
+                        "example": "eleven_monolingual_v1",
+                        "nullable": true
+                    }
+                }
+            },
+            "UpdateVisibilityDto": {
+                "type": "object",
+                "properties": {
+                    "visibility": {
+                        "type": "string",
+                        "enum": [
+                            "public",
+                            "private",
+                            "protected"
+                        ],
+                        "example": "public"
+                    },
+                    "protectedPassword": {
+                        "type": "string",
+                        "example": "mySecret123",
+                        "description": "Required when visibility is PROTECTED. Minimum 6 characters."
+                    }
+                },
+                "required": [
+                    "visibility"
+                ]
+            },
+            "UpdateProfileDto": {
+                "type": "object",
+                "properties": {
+                    "identity": {
+                        "$ref": "#/components/schemas/UpdateIdentityDto"
+                    },
+                    "works": {
+                        "description": "Replaces entire works array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/WorkEntryDto"
+                        }
+                    },
+                    "timeline": {
+                        "description": "Replaces entire timeline array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TimelineEntryDto"
+                        }
+                    },
+                    "capabilities": {
+                        "description": "Replaces entire capabilities array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CapabilityEntryDto"
+                        }
+                    },
+                    "offerings": {
+                        "description": "Replaces entire offerings array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OfferingEntryDto"
+                        }
+                    },
+                    "metrics": {
+                        "description": "Replaces entire metrics array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MetricEntryDto"
+                        }
+                    },
+                    "testimonials": {
+                        "description": "Replaces entire testimonials array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TestimonialEntryDto"
+                        }
+                    },
+                    "team": {
+                        "description": "Replaces entire team array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TeamMemberEntryDto"
+                        }
+                    },
+                    "media": {
+                        "description": "Replaces entire media array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MediaEntryDto"
+                        }
+                    },
+                    "content": {
+                        "description": "Replaces entire content array.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ContentEntryDto"
+                        }
+                    },
+                    "social": {
+                        "$ref": "#/components/schemas/SocialDto"
+                    },
+                    "aiSettings": {
+                        "$ref": "#/components/schemas/AiSettingsDto"
+                    },
+                    "agentPersona": {
+                        "$ref": "#/components/schemas/UpdateAgentPersonaDto"
+                    },
+                    "visibility": {
+                        "$ref": "#/components/schemas/UpdateVisibilityDto"
+                    }
+                }
+            },
+            "ResumeIdentitySuggestionDto": {
+                "type": "object",
+                "properties": {
+                    "tagline": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "bio": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "location": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "industry": {
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "tagline",
+                    "bio",
+                    "location",
+                    "industry"
+                ]
+            },
+            "ResumeSuggestionsDto": {
+                "type": "object",
+                "properties": {
+                    "identity": {
+                        "nullable": true,
+                        "type": "object",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ResumeIdentitySuggestionDto"
+                            }
+                        ]
+                    },
+                    "capabilities": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "timeline": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "works": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "identity",
+                    "capabilities",
+                    "timeline",
+                    "works"
+                ]
+            },
+            "ResumeUploadResponseDto": {
+                "type": "object",
+                "properties": {
+                    "profile": {
+                        "$ref": "#/components/schemas/ProfileDataResponseDto"
+                    },
+                    "suggestions": {
+                        "nullable": true,
+                        "description": "Draft entries for review, or null when extraction is unavailable or yielded nothing.",
+                        "type": "object",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ResumeSuggestionsDto"
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "profile",
+                    "suggestions"
+                ]
+            },
+            "RepoInsightsDto": {
+                "type": "object",
+                "properties": {
+                    "languages": {
+                        "type": "object",
+                        "example": {
+                            "TypeScript": 123456,
+                            "JavaScript": 4321
+                        },
+                        "description": "Byte count per language as reported by GitHub"
+                    },
+                    "detectedTools": {
+                        "example": [
+                            "CI/CD",
+                            "Docker",
+                            "Testing",
+                            "ESLint"
+                        ],
+                        "description": "Tooling/practices detected from root config files",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "frameworks": {
+                        "example": [
+                            "NestJS",
+                            "Prisma",
+                            "Zod"
+                        ],
+                        "description": "Frameworks/libraries detected from package.json or requirements.txt",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "readme": {
+                        "type": "object",
+                        "example": "# My Project\nA cool tool that does X...",
+                        "nullable": true,
+                        "description": "Raw README markdown content, if one exists at the repo root"
+                    }
+                },
+                "required": [
+                    "languages",
+                    "detectedTools",
+                    "frameworks",
+                    "readme"
+                ]
+            },
+            "GithubRepositoryDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "example": "linux"
+                    },
+                    "fullName": {
+                        "type": "string",
+                        "example": "torvalds/linux"
+                    },
+                    "url": {
+                        "type": "string",
+                        "example": "https://github.com/torvalds/linux"
+                    },
+                    "description": {
+                        "type": "object",
+                        "example": "Linux kernel source tree",
+                        "nullable": true
+                    },
+                    "language": {
+                        "type": "object",
+                        "example": "C",
+                        "nullable": true
+                    },
+                    "stars": {
+                        "type": "number",
+                        "example": 170000
+                    },
+                    "forks": {
+                        "type": "number",
+                        "example": 52000
+                    },
+                    "isForked": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "topics": {
+                        "example": [
+                            "kernel",
+                            "linux"
+                        ],
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "example": "2024-01-15T10:00:00Z"
+                    },
+                    "insights": {
+                        "$ref": "#/components/schemas/RepoInsightsDto"
+                    }
+                },
+                "required": [
+                    "name",
+                    "fullName",
+                    "url",
+                    "description",
+                    "language",
+                    "stars",
+                    "forks",
+                    "isForked",
+                    "topics",
+                    "updatedAt",
+                    "insights"
+                ]
+            },
+            "GithubProfileResponseDto": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "example": "torvalds"
+                    },
+                    "name": {
+                        "type": "object",
+                        "example": "Linus Torvalds",
+                        "nullable": true
+                    },
+                    "bio": {
+                        "type": "object",
+                        "example": "Just a random Linux and git kernel maintainer",
+                        "nullable": true
+                    },
+                    "company": {
+                        "type": "object",
+                        "example": "Linux Foundation",
+                        "nullable": true
+                    },
+                    "location": {
+                        "type": "object",
+                        "example": "Portland, OR",
+                        "nullable": true
+                    },
+                    "email": {
+                        "type": "object",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "blog": {
+                        "type": "object",
+                        "example": "",
+                        "nullable": true
+                    },
+                    "avatarUrl": {
+                        "type": "string",
+                        "example": "https://avatars.githubusercontent.com/u/1024025"
+                    },
+                    "profileUrl": {
+                        "type": "string",
+                        "example": "https://github.com/torvalds"
+                    },
+                    "followers": {
+                        "type": "number",
+                        "example": 230000
+                    },
+                    "following": {
+                        "type": "number",
+                        "example": 0
+                    },
+                    "publicRepos": {
+                        "type": "number",
+                        "example": 7
+                    },
+                    "publicGists": {
+                        "type": "number",
+                        "example": 0
+                    },
+                    "topRepositories": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/GithubRepositoryDto"
+                        }
+                    },
+                    "contributions": {
+                        "type": "number",
+                        "example": 42,
+                        "description": "Push/PR/issue/create events in the current calendar year"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "example": "2011-09-03T15:26:22Z"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "example": "2024-01-15T10:00:00Z"
+                    }
+                },
+                "required": [
+                    "username",
+                    "name",
+                    "bio",
+                    "company",
+                    "location",
+                    "email",
+                    "blog",
+                    "avatarUrl",
+                    "profileUrl",
+                    "followers",
+                    "following",
+                    "publicRepos",
+                    "publicGists",
+                    "topRepositories",
+                    "contributions",
+                    "createdAt",
+                    "updatedAt"
+                ]
+            },
+            "SummarizeRepoDto": {
+                "type": "object",
+                "properties": {
+                    "repoFullName": {
+                        "type": "string",
+                        "example": "i-madhav/portvilla-BE",
+                        "description": "Full repo name: owner/repo"
+                    }
+                },
+                "required": [
+                    "repoFullName"
+                ]
+            },
+            "SummarizeRepoResponseDto": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "example": "A NestJS + Mongoose REST API powering Portvilla..."
+                    }
+                },
+                "required": [
+                    "summary"
+                ]
+            },
+            "CreateSessionDto": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "guest"
+                        ],
+                        "example": "guest"
+                    },
+                    "profileUsername": {
+                        "type": "string",
+                        "example": "johndoe",
+                        "description": "Required when type is \"user\". Must be 3–30 lowercase alphanumeric characters."
+                    }
+                },
+                "required": [
+                    "type"
+                ]
+            },
+            "SessionResponseDto": {
+                "type": "object",
+                "properties": {
+                    "sessionId": {
+                        "type": "string",
+                        "example": "64a1b2c3d4e5f6789abcdef0"
+                    },
+                    "livekitUrl": {
+                        "type": "string",
+                        "example": "wss://your-project.livekit.cloud"
+                    },
+                    "participantToken": {
+                        "type": "string",
+                        "description": "LiveKit participant JWT — pass directly to the LiveKit SDK. Embedded in the token: room name, participant identity, canPublish/Subscribe grants, and the RoomConfiguration that auto-dispatches the correct agent on room creation."
+                    },
+                    "roomName": {
+                        "type": "string",
+                        "example": "portvilla-guest-a1b2c3d4e5f6"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "guest"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "active",
+                            "ended"
+                        ],
+                        "example": "pending"
+                    },
+                    "agentName": {
+                        "type": "string",
+                        "enum": [
+                            "portvilla-intro",
+                            "portfolio-agent"
+                        ],
+                        "example": "portvilla-intro"
+                    }
+                },
+                "required": [
+                    "sessionId",
+                    "livekitUrl",
+                    "participantToken",
+                    "roomName",
+                    "type",
+                    "status",
+                    "agentName"
+                ]
+            },
+            "ActivityTotalsDto": {
+                "type": "object",
+                "properties": {
+                    "conversations": {
+                        "type": "number",
+                        "description": "All-time conversations (ACTIVE or ENDED only — never PENDING)."
+                    },
+                    "totalDurationSec": {
+                        "type": "number",
+                        "description": "Summed duration of completed conversations, in seconds."
+                    },
+                    "avgDurationSec": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "Mean completed-conversation duration in seconds, or null when none have ended."
+                    }
+                },
+                "required": [
+                    "conversations",
+                    "totalDurationSec",
+                    "avgDurationSec"
+                ]
+            },
+            "ActivityLast7dDto": {
+                "type": "object",
+                "properties": {
+                    "conversations": {
+                        "type": "number"
+                    },
+                    "deltaVsPrior7d": {
+                        "type": "number",
+                        "description": "Change vs. the prior 7-day window (this window minus previous)."
+                    }
+                },
+                "required": [
+                    "conversations",
+                    "deltaVsPrior7d"
+                ]
+            },
+            "RecentSessionDto": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "startedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "durationSec": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "Duration in seconds, or null if not yet ended."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "active",
+                            "ended"
+                        ]
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "guest"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "startedAt",
+                    "durationSec",
+                    "status",
+                    "type"
+                ]
+            },
+            "DailyBucketDto": {
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "example": "2026-07-18"
+                    },
+                    "count": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "date",
+                    "count"
+                ]
+            },
+            "SessionActivityDto": {
+                "type": "object",
+                "properties": {
+                    "totals": {
+                        "$ref": "#/components/schemas/ActivityTotalsDto"
+                    },
+                    "last7d": {
+                        "$ref": "#/components/schemas/ActivityLast7dDto"
+                    },
+                    "recent": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/RecentSessionDto"
+                        }
+                    },
+                    "daily": {
+                        "description": "14 zero-filled UTC day buckets, oldest first.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DailyBucketDto"
+                        }
+                    }
+                },
+                "required": [
+                    "totals",
+                    "last7d",
+                    "recent",
+                    "daily"
+                ]
+            }
+        }
+    }
+}
