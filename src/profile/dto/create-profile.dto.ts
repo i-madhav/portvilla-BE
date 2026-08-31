@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
   IsArray,
   IsEnum,
   IsNotEmpty,
@@ -11,6 +12,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+import { MAX_SECTION_ENTRIES } from '../domain/section-limits';
 
 import { ProfileVisibility } from '../domain/profile.interface';
 import {
@@ -70,6 +73,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [WorkEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => WorkEntryDto)
   @IsOptional()
@@ -77,6 +81,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [TimelineEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => TimelineEntryDto)
   @IsOptional()
@@ -84,6 +89,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [CapabilityEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => CapabilityEntryDto)
   @IsOptional()
@@ -91,6 +97,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [OfferingEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => OfferingEntryDto)
   @IsOptional()
@@ -98,6 +105,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [MetricEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => MetricEntryDto)
   @IsOptional()
@@ -105,6 +113,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [TestimonialEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => TestimonialEntryDto)
   @IsOptional()
@@ -112,6 +121,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [TeamMemberEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => TeamMemberEntryDto)
   @IsOptional()
@@ -119,6 +129,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [MediaEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => MediaEntryDto)
   @IsOptional()
@@ -126,6 +137,7 @@ export class CreateProfileDto {
 
   @ApiPropertyOptional({ type: [ContentEntryDto] })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => ContentEntryDto)
   @IsOptional()

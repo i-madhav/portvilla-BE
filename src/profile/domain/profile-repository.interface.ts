@@ -5,7 +5,8 @@ import type {
   SocialSection,
   AiSettingsSection,
   AgentPersonaSection,
-  WorkEntry,
+  EntryInput,
+  WorkEntryInput,
   TimelineEntry,
   CapabilityEntry,
   OfferingEntry,
@@ -22,21 +23,25 @@ export const PROFILE_REPOSITORY = Symbol('IProfileRepository');
 
 // ─── Input Types ──────────────────────────────────────────────────────────────
 
+/**
+ * Array sections arrive as `EntryInput`s — entries whose `key` may be missing.
+ * `create` mints the missing ones, so callers never have to.
+ */
 export interface CreateProfileData {
   userId: string;
   username: string;
   visibility: ProfileVisibility;
   protectedPassword: string | null;
   identity: IdentitySection;
-  works: WorkEntry[];
-  timeline: TimelineEntry[];
-  capabilities: CapabilityEntry[];
-  offerings: OfferingEntry[];
-  metrics: MetricEntry[];
-  testimonials: TestimonialEntry[];
-  team: TeamMemberEntry[];
-  media: MediaEntry[];
-  content: ContentEntry[];
+  works: WorkEntryInput[];
+  timeline: EntryInput<TimelineEntry>[];
+  capabilities: EntryInput<CapabilityEntry>[];
+  offerings: EntryInput<OfferingEntry>[];
+  metrics: EntryInput<MetricEntry>[];
+  testimonials: EntryInput<TestimonialEntry>[];
+  team: EntryInput<TeamMemberEntry>[];
+  media: EntryInput<MediaEntry>[];
+  content: EntryInput<ContentEntry>[];
   social: SocialSection;
   aiSettings: AiSettingsSection;
   agentPersona: AgentPersonaSection;
@@ -50,6 +55,11 @@ export interface IProfileRepository {
   findByUsername(username: string): Promise<IProfileRecord | null>;
   existsByUserId(userId: string): Promise<boolean>;
   existsByUsername(username: string): Promise<boolean>;
+  /**
+   * Applies a `$set` payload of dotted field paths. Any keyed array section
+   * present in `fields` is re-keyed on the way in, so an entry the client sent
+   * without a key comes back with one.
+   */
   update(
     profileId: string,
     fields: Record<string, unknown>,

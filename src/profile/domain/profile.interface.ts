@@ -91,6 +91,22 @@ export enum AgentSpeakingSpeed {
   FAST = 'fast',
 }
 
+// ─── Array Entry Keys ─────────────────────────────────────────────────────────
+
+/**
+ * Every entry of an array section carries a `key` that is stable across edits —
+ * see `entry-key.ts` for the rules and `KEYED_ARRAY_SECTIONS` for the sections
+ * this applies to.
+ *
+ * `EntryInput` is the same entry as it arrives from a client, where `key` is
+ * optional: a missing key means "this is a new entry". Only the repository
+ * turns an `EntryInput` into a fully keyed entry, so no other layer can write
+ * an unkeyed one.
+ */
+export type EntryInput<T extends { key: string }> = Omit<T, 'key'> & {
+  key?: string;
+};
+
 // ─── Section Types ────────────────────────────────────────────────────────────
 
 export interface IdentitySection {
@@ -108,7 +124,43 @@ export interface IdentitySection {
   resume: { url: string | null; parsedText: string | null };
 }
 
+/**
+ * A work's lifecycle status. Stages reuse this vocabulary rather than defining a
+ * second, overlapping one.
+ */
+export const WORK_STATUSES = [
+  'active',
+  'completed',
+  'in-progress',
+  'archived',
+] as const;
+
+export type WorkStatus = (typeof WORK_STATUSES)[number];
+
+/**
+ * One step in a work's arc — "private beta", "GA", "scale".
+ *
+ * Array order is the order; there is deliberately no `order` field and no
+ * pointer to the next stage.
+ *
+ * The `summary`/`detail` split is forced by the medium: `summary` is what the
+ * voice agent says aloud (one breath), `detail` is served only when the visitor
+ * asks to go deeper. Narrating a six-stage product end to end would otherwise be
+ * three minutes of uninterrupted speech.
+ */
+export interface StageEntry {
+  key: string;
+  label: string;
+  status: WorkStatus;
+  summary: string;
+  detail: string | null;
+  date: string | null;
+  endDate: string | null;
+  highlights: string[];
+}
+
 export interface WorkEntry {
+  key: string;
   type: WorkType;
   name: string;
   tagline: string | null;
@@ -119,14 +171,30 @@ export interface WorkEntry {
   screenshots: { url: string; caption: string | null }[];
   technologies: string[];
   tags: string[];
-  status: 'active' | 'completed' | 'in-progress' | 'archived';
+  status: WorkStatus;
   highlights: string[];
   featured: boolean;
-  codeSnippets: { language: string; code: string; description: string | null }[];
+  codeSnippets: {
+    language: string;
+    code: string;
+    description: string | null;
+  }[];
   date: string | null;
+  /** The work's arc, in order. Empty for a work with no story to walk. */
+  stages: StageEntry[];
 }
 
+/**
+ * A work as it arrives from a client: both the work and each of its stages may
+ * be missing a key. `EntryInput<WorkEntry>` alone would not cover the stages,
+ * since they are keyed one level down.
+ */
+export type WorkEntryInput = EntryInput<Omit<WorkEntry, 'stages'>> & {
+  stages: EntryInput<StageEntry>[];
+};
+
 export interface TimelineEntry {
+  key: string;
   category: TimelineCategory;
   date: string;
   endDate: string | null;
@@ -139,6 +207,7 @@ export interface TimelineEntry {
 }
 
 export interface CapabilityEntry {
+  key: string;
   name: string;
   description: string | null;
   icon: string | null;
@@ -148,6 +217,7 @@ export interface CapabilityEntry {
 }
 
 export interface OfferingEntry {
+  key: string;
   name: string;
   description: string;
   icon: string | null;
@@ -159,6 +229,7 @@ export interface OfferingEntry {
 }
 
 export interface MetricEntry {
+  key: string;
   value: string;
   label: string;
   description: string | null;
@@ -167,6 +238,7 @@ export interface MetricEntry {
 }
 
 export interface TestimonialEntry {
+  key: string;
   text: string;
   author: string;
   role: string | null;
@@ -177,6 +249,7 @@ export interface TestimonialEntry {
 }
 
 export interface TeamMemberEntry {
+  key: string;
   name: string;
   role: string;
   bio: string | null;
@@ -185,6 +258,7 @@ export interface TeamMemberEntry {
 }
 
 export interface MediaEntry {
+  key: string;
   url: string;
   caption: string | null;
   type: 'image' | 'video';
@@ -192,6 +266,7 @@ export interface MediaEntry {
 }
 
 export interface ContentEntry {
+  key: string;
   type: ContentType;
   title: string;
   url: string;

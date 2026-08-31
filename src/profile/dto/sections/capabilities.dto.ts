@@ -10,18 +10,30 @@ import {
 
 import { CapabilityProficiency } from '../../domain/profile.interface';
 
+import { IsEntryKey } from '../entry-key.decorator';
+
 export class CapabilityEntryDto {
+  @IsEntryKey()
+  key?: string;
+
   @ApiProperty({ example: 'TypeScript' })
   @IsString()
   @IsNotEmpty()
   name!: string;
 
-  @ApiPropertyOptional({ example: 'Strongly typed JavaScript superset', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Strongly typed JavaScript superset',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   description?: string | null;
 
-  @ApiPropertyOptional({ example: 'Code2', description: 'Lucide icon name', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Code2',
+    description: 'Lucide icon name',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   icon?: string | null;

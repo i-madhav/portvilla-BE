@@ -10,7 +10,12 @@ import {
 
 import { TimelineCategory } from '../../domain/profile.interface';
 
+import { IsEntryKey } from '../entry-key.decorator';
+
 export class TimelineEntryDto {
+  @IsEntryKey()
+  key?: string;
+
   @ApiProperty({ enum: TimelineCategory })
   @IsEnum(TimelineCategory)
   category!: TimelineCategory;
@@ -35,12 +40,18 @@ export class TimelineEntryDto {
   @IsOptional()
   organization?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://example.com/logo.png', nullable: true })
+  @ApiPropertyOptional({
+    example: 'https://example.com/logo.png',
+    nullable: true,
+  })
   @IsUrl()
   @IsOptional()
   organizationLogoUrl?: string | null;
 
-  @ApiPropertyOptional({ example: 'Led platform team of 6 engineers.', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Led platform team of 6 engineers.',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   description?: string | null;

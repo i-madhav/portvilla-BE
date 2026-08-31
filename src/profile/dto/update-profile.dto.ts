@@ -1,6 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsOptional, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsOptional,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
+
+import { MAX_SECTION_ENTRIES } from '../domain/section-limits';
 
 import { UpdateIdentityDto } from './sections/identity.dto';
 import { WorkEntryDto } from './sections/works.dto';
@@ -24,64 +31,100 @@ export class UpdateProfileDto {
   @IsOptional()
   identity?: UpdateIdentityDto;
 
-  @ApiPropertyOptional({ type: [WorkEntryDto], description: 'Replaces entire works array.' })
+  @ApiPropertyOptional({
+    type: [WorkEntryDto],
+    description: 'Replaces entire works array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => WorkEntryDto)
   @IsOptional()
   works?: WorkEntryDto[];
 
-  @ApiPropertyOptional({ type: [TimelineEntryDto], description: 'Replaces entire timeline array.' })
+  @ApiPropertyOptional({
+    type: [TimelineEntryDto],
+    description: 'Replaces entire timeline array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => TimelineEntryDto)
   @IsOptional()
   timeline?: TimelineEntryDto[];
 
-  @ApiPropertyOptional({ type: [CapabilityEntryDto], description: 'Replaces entire capabilities array.' })
+  @ApiPropertyOptional({
+    type: [CapabilityEntryDto],
+    description: 'Replaces entire capabilities array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => CapabilityEntryDto)
   @IsOptional()
   capabilities?: CapabilityEntryDto[];
 
-  @ApiPropertyOptional({ type: [OfferingEntryDto], description: 'Replaces entire offerings array.' })
+  @ApiPropertyOptional({
+    type: [OfferingEntryDto],
+    description: 'Replaces entire offerings array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => OfferingEntryDto)
   @IsOptional()
   offerings?: OfferingEntryDto[];
 
-  @ApiPropertyOptional({ type: [MetricEntryDto], description: 'Replaces entire metrics array.' })
+  @ApiPropertyOptional({
+    type: [MetricEntryDto],
+    description: 'Replaces entire metrics array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => MetricEntryDto)
   @IsOptional()
   metrics?: MetricEntryDto[];
 
-  @ApiPropertyOptional({ type: [TestimonialEntryDto], description: 'Replaces entire testimonials array.' })
+  @ApiPropertyOptional({
+    type: [TestimonialEntryDto],
+    description: 'Replaces entire testimonials array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => TestimonialEntryDto)
   @IsOptional()
   testimonials?: TestimonialEntryDto[];
 
-  @ApiPropertyOptional({ type: [TeamMemberEntryDto], description: 'Replaces entire team array.' })
+  @ApiPropertyOptional({
+    type: [TeamMemberEntryDto],
+    description: 'Replaces entire team array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => TeamMemberEntryDto)
   @IsOptional()
   team?: TeamMemberEntryDto[];
 
-  @ApiPropertyOptional({ type: [MediaEntryDto], description: 'Replaces entire media array.' })
+  @ApiPropertyOptional({
+    type: [MediaEntryDto],
+    description: 'Replaces entire media array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => MediaEntryDto)
   @IsOptional()
   media?: MediaEntryDto[];
 
-  @ApiPropertyOptional({ type: [ContentEntryDto], description: 'Replaces entire content array.' })
+  @ApiPropertyOptional({
+    type: [ContentEntryDto],
+    description: 'Replaces entire content array.',
+  })
   @IsArray()
+  @ArrayMaxSize(MAX_SECTION_ENTRIES)
   @ValidateNested({ each: true })
   @Type(() => ContentEntryDto)
   @IsOptional()

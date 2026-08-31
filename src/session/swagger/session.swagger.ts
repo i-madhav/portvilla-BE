@@ -23,7 +23,7 @@ export const CreateSessionEndpoint = (): MethodDecorator =>
         'agent dispatch baked into `RoomConfiguration`, persists the session record, and ' +
         'returns everything the frontend needs to call `session.start()`.\n\n' +
         '**GUEST** — generates a random room name and identity; dispatches `welcome-agent`.\n\n' +
-        '**USER** — looks up the profile by `profileUsername`; dispatches `portfolio-agent` ' +
+        '**USER** — looks up the profile by `profileUsername`; dispatches `portvilla-portfolio` ' +
         'with `{ profile_id, profile_username }` in the LiveKit job metadata so the agent can ' +
         'fetch portfolio context on startup.',
     }),

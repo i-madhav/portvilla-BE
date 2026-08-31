@@ -10,8 +10,15 @@ import {
 
 import { TestimonialRelationship } from '../../domain/profile.interface';
 
+import { IsEntryKey } from '../entry-key.decorator';
+
 export class TestimonialEntryDto {
-  @ApiProperty({ example: 'Jane is one of the most impactful engineers I have worked with.' })
+  @IsEntryKey()
+  key?: string;
+
+  @ApiProperty({
+    example: 'Jane is one of the most impactful engineers I have worked with.',
+  })
   @IsString()
   @IsNotEmpty()
   text!: string;
@@ -31,7 +38,10 @@ export class TestimonialEntryDto {
   @IsOptional()
   organization?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg', nullable: true })
+  @ApiPropertyOptional({
+    example: 'https://example.com/avatar.jpg',
+    nullable: true,
+  })
   @IsUrl()
   @IsOptional()
   avatarUrl?: string | null;

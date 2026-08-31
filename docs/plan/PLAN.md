@@ -1,994 +1,491 @@
-# PortVilla — Implementation Plan
+# Portvilla Backend — State of the System
 
-## 1. Product Vision
-
-An open-source AI-powered interactive portfolio platform. Candidates onboard once with professional data, receive a shareable URL (`portvilla.in/username`), and visitors interact with a Jarvis-style voice/chat AI assistant that represents the candidate in third person — grounded strictly in submitted data.
-
-**Core differentiator**: Voice-first interaction with a dynamic orb UI that simulates intelligent reasoning, making portfolios feel alive.
-
----
-
-## 2. User Personas
-
-### Candidate (Creator)
-- Developers, researchers, designers, professionals
-- Wants a standout portfolio beyond static sites
-- Submits professional data once, shares the link
-- Provides their own LLM API key or uses open-source models
-
-### Visitor (Consumer)
-- Recruiters, hiring managers, peers, collaborators
-- Lands on a candidate's PortVilla URL
-- Interacts via voice (primary) or chat (secondary)
-- Expects fast, accurate, grounded responses
+> This document describes what the backend **is**, not what it was originally
+> designed to be. It is written against the code as it exists. When code and this
+> document disagree, the code wins — fix the document.
+>
+> Last reconciled with source: 2026-08-29.
 
 ---
 
-## 3. User Journeys
+## 1. What Portvilla is
 
-### Candidate Journey
-```
-Sign Up (email/password)
-    → Email Verification (Nodemailer)
-    → Onboarding Form (multi-step)
-    → Submit Professional Data
-    → Configure AI Settings (API key / model selection)
-    → Profile Processed → JSON stored
-    → Dashboard Generated
-    → Get Shareable URL (portvilla.in/username)
-    → Manage Profile (edit, toggle public/private)
-```
+An AI-powered interactive portfolio platform. A candidate (or company, product,
+organization) onboards their professional data once and gets a shareable URL
+(`portvilla.in/<username>`). Visitors land on that page and talk to a voice agent
+that represents the owner in third person, grounded strictly in the data they
+submitted.
 
-### Visitor Journey
-```
-Open portvilla.in/username
-    → See Candidate Dashboard
-    → Orb in Idle State ("Ask me anything about this candidate")
-    → Click/Tap Orb → Listening State
-    → Speak or Type Question
-    → Processing State (cosmetic reasoning traces)
-    → Response State (answer + dynamic UI cards)
-    → Continue Conversation or Browse Dashboard
-```
+The backend is the **system of record and the control plane**. It owns accounts,
+profile data, and voice-session lifecycle. It does **not** run the conversational
+LLM — that lives in the Python agent worker.
 
 ---
 
-## 4. System Architecture
+## 2. Repository topology
+
+Portvilla is three repositories under `/Volumes/Seagate/portvilla`:
+
+| Repo | Stack | Responsibility |
+|---|---|---|
+| `portvilla-BE` | NestJS 11 + Mongoose 9 + MongoDB | **This repo.** REST API, auth, profile storage, LiveKit token minting, session lifecycle |
+| `portvilla-LE/portvilla-LE` | Vite + React 18 + Redux Toolkit + react-query | Web client — onboarding, dashboard, public portfolio, orb/voice UI |
+| `portvilla-agent` | Python + LiveKit Agents SDK | The voice worker. Runs STT → LLM → TTS. **The conversational LLM runs here, not in the BE.** |
+
+### The BE ↔ agent boundary
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Client (React)                       │
-│  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐  │
-│  │ Onboard  │  │Dashboard │  │  Orb UI   │  │  Chat UI  │  │
-│  │  Forms   │  │  Views   │  │(Three.js) │  │           │  │
-│  └──────────┘  └──────────┘  └───────────┘  └───────────┘  │
-│                    │              │               │          │
-│                    │         LiveKit Client       │          │
-│                    │              │               │          │
-└────────────────────┼──────────────┼───────────────┼──────────┘
-                     │              │               │
-                     ▼              ▼               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     NestJS Backend                          │
-│  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐  │
-│  │  Auth    │  │ Profile  │  │    AI     │  │  Cache    │  │
-│  │ Module   │  │ Module   │  │  Module   │  │  Layer    │  │
-│  └──────────┘  └──────────┘  └───────────┘  └───────────┘  │
-│                                    │                        │
-│                              ┌─────┴─────┐                  │
-│                              │ LLM Layer │                  │
-│                              │ (BYOK /   │                  │
-│                              │  Groq /   │                  │
-│                              │  Ollama)  │                  │
-│                              └───────────┘                  │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-              ┌────────────────┐     ┌────────────────┐
-              │    MongoDB     │     │  LiveKit Server │
-              │  (profiles,    │     │  (voice media)  │
-              │   users,       │     │                 │
-              │   cache)       │     └────────────────┘
-              └────────────────┘
+Browser ──POST /api/v1/session──► BE ──mints LiveKit JWT with RoomConfiguration──┐
+   │                               │                                             │
+   │◄──── participantToken ────────┘                                             │
+   │                                                                             ▼
+   └──connect(wss LiveKit)──► LiveKit Cloud ──auto-dispatches agent by name──► Python worker
+                                    │                                             │
+                                    │                                             │
+                                    │                        GET /agent/context/:username
+                                    │                                             │
+                                    └──POST /api/v1/session/webhook──► BE ◄────────┘
+                                       (participant_joined, room_finished)
 ```
+
+The BE never talks to the worker directly. Coupling happens through two contracts:
+
+1. **Agent dispatch name** — `AgentName` in `src/session/domain/session.interface.ts`
+   must byte-match the `agent_name=` values registered in the worker's
+   `@server.rtc_session(...)` decorators.
+2. **Context endpoint** — the worker fetches `GET {BACKEND_URL}/agent/context/{username}`
+   to build its system prompt.
+
+Both contracts now hold: the worker fetches the slide catalog with the service token
+(Phase 4), and `AgentName.PORTFOLIO` matches the worker's `portvilla-portfolio`. What
+remains is deployment — see §10.
 
 ---
 
-## 5. Backend Architecture (NestJS)
+## 3. Architecture and layering
 
-### Module Structure
+Every feature module follows the same four-layer shape. This is the single most
+important convention in the codebase.
 
 ```
-src/
-├── main.ts
-├── app.module.ts
-├── config/
-│   ├── config.module.ts
-│   ├── config.service.ts
-│   └── configuration.ts
-├── auth/
-│   ├── auth.module.ts
-│   ├── auth.controller.ts
-│   ├── auth.service.ts
-│   ├── strategies/
-│   │   └── jwt.strategy.ts
-│   ├── guards/
-│   │   ├── jwt-auth.guard.ts
-│   │   └── profile-owner.guard.ts
-│   ├── decorators/
-│   │   └── current-user.decorator.ts
-│   └── dto/
-│       ├── register.dto.ts
-│       ├── login.dto.ts
-│       └── verify-email.dto.ts
-├── mail/
-│   ├── mail.module.ts
-│   └── mail.service.ts              # Nodemailer
-├── users/
-│   ├── users.module.ts
-│   ├── users.controller.ts
-│   ├── users.service.ts
-│   └── schemas/
-│       └── user.schema.ts
-├── profiles/
-│   ├── profiles.module.ts
-│   ├── profiles.controller.ts
-│   ├── profiles.service.ts
-│   ├── dto/
-│   │   ├── create-profile.dto.ts
-│   │   ├── update-profile.dto.ts
-│   │   └── profile-sections.dto.ts
-│   └── schemas/
-│       └── profile.schema.ts
-├── ai/
-│   ├── ai.module.ts
-│   ├── ai.controller.ts
-│   ├── ai.service.ts
-│   ├── providers/
-│   │   ├── llm-provider.interface.ts
-│   │   ├── openai.provider.ts
-│   │   ├── groq.provider.ts
-│   │   └── ollama.provider.ts
-│   ├── prompt/
-│   │   ├── prompt-builder.service.ts  # Builds system prompt from JSON profile
-│   │   └── templates/
-│   │       └── system-prompt.ts
-│   └── cache/
-│       ├── response-cache.service.ts
-│       └── schemas/
-│           └── cached-response.schema.ts
-├── voice/
-│   ├── voice.module.ts
-│   ├── voice.controller.ts          # LiveKit token generation
-│   └── voice.service.ts
-├── dashboard/
-│   ├── dashboard.module.ts
-│   ├── dashboard.controller.ts       # Public profile endpoint
-│   └── dashboard.service.ts
-└── common/
-    ├── filters/
-    │   └── http-exception.filter.ts
-    ├── interceptors/
-    │   └── transform.interceptor.ts
-    └── pipes/
-        └── validation.pipe.ts
+module/
+├── module.controller.ts      HTTP only. No business logic. Swagger decorators imported, never inline.
+├── module.service.ts         Business logic. Injects repository INTERFACES via Symbol tokens.
+├── module.module.ts          Wiring. Binds { provide: SYMBOL, useClass: ConcreteRepo }.
+├── domain/                   Interfaces, enums, repository contracts, injection tokens. No framework imports.
+├── infrastructure/
+│   ├── schema/               Mongoose @Schema classes. The ONLY place Mongoose types appear.
+│   └── repository/           Implements the domain interface. Converts Document → plain Record.
+├── dto/                      class-validator request DTOs + response DTOs with static fromRecord().
+├── guards/                   Route-level authorization.
+└── swagger/                  Composed @ApiOperation/@ApiResponse decorators, exported as functions.
 ```
 
-### Key Backend Decisions
+### The three type tiers
 
-- **No embeddings, no vector DB, no RAG** — candidate data fits in LLM context window
-- **JSON storage** — profile data stored as structured JSON in MongoDB
-- **Prompt assembly** — `prompt-builder.service.ts` serializes relevant JSON sections into system prompt
-- **LLM provider abstraction** — interface-based, swap between OpenAI/Groq/Ollama
-- **Response caching** — hash(candidate_id + normalized_query) → cached response in MongoDB (TTL-based)
-- **LiveKit integration** — backend generates room tokens, handles STT/TTS pipeline coordination
+Each persisted entity has three types, and the boundary between them is enforced by
+convention, not by the compiler. Respect it:
+
+| Type | Example | Who may touch it |
+|---|---|---|
+| `IEntity` | `IProfile` | Schema definition only — the raw MongoDB field shape |
+| `EntityDocument` | `ProfileDocument` | **Repositories only.** Never crosses into a service |
+| `IEntityRecord` | `IProfileRecord` | Services and above. Plain, serialisable, `id: string` |
+
+`toRecord()` in each repository is the conversion point. Secrets are dropped there:
+`IProfileRecord` has no `protectedPassword`, `IUserRecord` keeps `passwordHash` only
+because `AuthService` needs it for `bcrypt.compare`.
+
+### Cross-module dependency graph
+
+```
+AppModule
+├── ConfigModule (global, envFilePath: ['/etc/secrets/portvilla-be/.env', '.env'])
+├── ThrottlerModule (global guard, 100 req / 60s default)
+├── MongooseDatabaseModule
+├── AuthModule ──────────► MailModule
+│     exports USER_REPOSITORY
+├── UsersModule ─────────► AuthModule
+├── ProfileModule ───────► AuthModule, LlmModule
+│     exports PROFILE_REPOSITORY, ProfileOwnerGuard
+├── ParserModule ────────► LlmModule, ProfileModule
+└── SessionModule ───────► ProfileModule
+```
+
+`HttpLoggerMiddleware` is applied to `'*'` — it runs before guards, so rejected
+requests still produce a log line.
 
 ---
 
-## 6. Frontend Architecture (React)
+## 4. Module inventory
 
-### Tech Stack
+### `auth` — accounts, OTP, JWT
+Email + password registration with a 6-digit OTP flow (bcrypt-hashed OTPs, MongoDB
+TTL index auto-expires them). Two login paths: password, and passwordless OTP.
+Access/refresh token pair, both signed with separate secrets and explicit
+per-call expiry. The refresh token's bcrypt hash is stored on the user; **reuse of
+a stale refresh token revokes the session immediately** (`auth.service.ts:366`).
+`JwtStrategy` re-loads the user on every request so a deleted account cannot keep
+using a valid token.
 
-| Concern | Choice |
-|---|---|
-| Framework | React 18+ with Vite |
-| Routing | React Router v6 |
-| State | Zustand |
-| Styling | Tailwind CSS + Framer Motion |
-| 3D Orb | Three.js (react-three-fiber) |
-| Voice | LiveKit React SDK |
-| HTTP | Axios |
-| Forms | React Hook Form + Zod |
+### `users` — account read
+One endpoint, `GET /users/me`. Exists as its own module (rather than inside `auth`)
+so account-shaped reads don't drag the auth surface along.
 
-### Page Structure
+### `profile` — the core domain
+The largest module. Owns the entity-agnostic profile document (§5), username rules,
+visibility/unlock logic, and file uploads. `ProfileOwnerGuard` pre-loads the caller's
+profile onto `req.profile` so services skip a redundant lookup.
+
+Notable behaviours:
+- **Public-profile allowlist.** `PublicProfileResponseDto.fromRecord` builds the
+  visitor payload field by field. A new profile field is invisible publicly until
+  someone deliberately adds it — the safe default.
+- **Private = 404, not 403.** A private profile is indistinguishable from a
+  non-existent one (`profile.service.ts:206`).
+- **Resume extraction is a suggestion, never a write.** `POST /profiles/me/resume`
+  stores the PDF and its `pdf-parse` text, then asks an LLM for structured
+  suggestions which are *returned* for the user to confirm — never persisted.
+
+### `session` — LiveKit voice lifecycle
+Mints LiveKit participant JWTs with an embedded `RoomConfiguration` that
+auto-dispatches the right agent when the room is created. Two session types:
+`GUEST` (marketing/intro agent, no profile) and `USER` (portfolio agent, dispatch
+metadata carries `profile_id` + `profile_username`).
+
+Lifecycle is closed by the LiveKit webhook, whose authenticity comes from the
+signed raw body — this is why `main.ts` sets `rawBody: true` and registers the JSON
+parser for `application/webhook+json`.
 
 ```
-src/
-├── main.tsx
-├── App.tsx
-├── routes/
-│   ├── index.tsx
-│   ├── auth/
-│   │   ├── Login.tsx
-│   │   ├── Register.tsx
-│   │   └── VerifyEmail.tsx
-│   ├── onboarding/
-│   │   ├── OnboardingLayout.tsx
-│   │   ├── steps/
-│   │   │   ├── BasicInfo.tsx
-│   │   │   ├── ProfessionalInfo.tsx
-│   │   │   ├── ExternalSources.tsx
-│   │   │   └── AISettings.tsx
-│   │   └── OnboardingComplete.tsx
-│   ├── candidate/
-│   │   ├── CandidateSettings.tsx
-│   │   └── EditProfile.tsx
-│   └── portfolio/
-│       └── [username]/
-│           └── PortfolioView.tsx       # The public-facing page
-├── components/
-│   ├── orb/
-│   │   ├── Orb.tsx                     # Three.js orb component
-│   │   ├── OrbStates.ts               # Idle, Listening, Processing, Response
-│   │   ├── OrbShader.glsl             # Custom shader for glow/pulse
-│   │   └── OrbAnimations.ts
-│   ├── reasoning/
-│   │   ├── ReasoningCanvas.tsx         # Cosmetic reasoning trace display
-│   │   ├── ReasoningStep.tsx
-│   │   └── reasoningTraces.ts          # Question-contextual trace generator
-│   ├── response/
-│   │   ├── ResponseRenderer.tsx        # Dynamic card layout
-│   │   ├── cards/
-│   │   │   ├── SkillCard.tsx
-│   │   │   ├── ProjectCard.tsx
-│   │   │   ├── TimelineCard.tsx
-│   │   │   ├── ExperienceCard.tsx
-│   │   │   ├── ResearchCard.tsx
-│   │   │   └── AchievementCard.tsx
-│   │   └── MarkdownResponse.tsx
-│   ├── dashboard/
-│   │   ├── DashboardLayout.tsx
-│   │   ├── CandidateOverview.tsx
-│   │   ├── SkillsSection.tsx
-│   │   ├── TimelineSection.tsx
-│   │   ├── ProjectsSection.tsx
-│   │   ├── ExperienceSection.tsx
-│   │   └── SocialLinks.tsx
-│   ├── chat/
-│   │   ├── ChatPanel.tsx
-│   │   ├── ChatMessage.tsx
-│   │   └── ChatInput.tsx
-│   ├── voice/
-│   │   ├── VoiceController.tsx         # LiveKit room management
-│   │   ├── Transcription.tsx           # Live STT display
-│   │   └── VoiceIndicator.tsx
-│   └── ui/                            # Shared UI primitives
-│       ├── Button.tsx
-│       ├── Input.tsx
-│       ├── Modal.tsx
-│       └── Loader.tsx
-├── hooks/
-│   ├── useOrb.ts
-│   ├── useVoice.ts
-│   ├── useAI.ts
-│   └── useProfile.ts
-├── stores/
-│   ├── authStore.ts
-│   ├── profileStore.ts
-│   ├── orbStore.ts
-│   └── chatStore.ts
-├── lib/
-│   ├── api.ts                          # Axios instance
-│   ├── livekit.ts                      # LiveKit client config
-│   └── utils.ts
-└── assets/
-    ├── shaders/
-    └── animations/
+POST /session          → PENDING   (a token was minted; someone clicked "talk")
+participant_joined     → ACTIVE    (only when identity === our minted visitor)
+room_finished          → ENDED     (stamps endedAt, making duration derivable)
 ```
+
+`GET /session/activity` reports only `ACTIVE|ENDED` — `PENDING` rows are clicks,
+not conversations, and counting them would inflate the dashboard.
+
+### `parser` — external platform ingestion
+GitHub only so far. Fetches a user, their top 10 repos by stars, and current-year
+contribution events, then derives per-repo insights: language bytes, tooling
+detected from root filenames (CI/CD, Docker, Testing, …), frameworks detected from
+`package.json` deps or `requirements.txt`, and the raw README.
+
+`Parser.create()` wraps a platform implementation in a `Proxy` so callers get both
+the generic `fetch()` and platform-specific methods off one object.
+
+### `llm` — provider abstraction
+`ILlmProvider` is a one-method interface: `complete(system, user) => string`.
+`createLlmProvider(settings)` switches on `LlmProvider` and returns an OpenAI-compat,
+Anthropic, or Ollama provider. Groq/DeepSeek/Custom all reuse the OpenAI-compatible
+client with a different `baseURL`.
+
+Two callers only: repo summarization (uses the *user's* configured key) and resume
+extraction (uses a *platform* key from env — see §8).
+
+### `mail` — Nodemailer
+Single responsibility: send the OTP email over SMTP.
+
+### `shared`
+- `mongoose/modelRegistry` — central `DB_MODEL_REGISTRY` of model tokens. Used by
+  `auth` and `session`; **`profile` still declares its own `PROFILE_MODEL = 'Profile'`
+  constant** rather than using the registry.
+- `mongoose/transaction-wrapper/TransactionRunner` — commit/abort/end wrapper. Written
+  but **not injected anywhere yet**.
+- `logging/http-logger.middleware` — global request/response logger. Never logs bodies.
+- `configuration/` — `registerAs` factories for LiveKit and GitHub. **Not registered
+  in `ConfigModule.forRoot`**; consumers read `process.env` via `ConfigService` directly.
+
+### `agent` — context for the voice worker
+`GET /agent/context/:username`, guarded by the worker↔backend shared secret
+(`ServiceTokenGuard`, `Authorization: Bearer $AGENT_SERVICE_TOKEN`) and throttled to
+30/min. Returns the agent persona plus the derived slide catalog
+(`profile/domain/slide.projector.ts`).
+
+Owns no state: no schema, no repository. It reads through `PROFILE_REPOSITORY` and
+projects, so the four-layer shape collapses to controller + service + DTO + guard.
+Only `public` profiles resolve — `private` and `protected` both 404.
 
 ---
 
-## 7. Orb UI — Design Spec
+## 5. Data model
 
-### Library Recommendation
+Four collections. All Mongoose, `{ timestamps: true }`.
 
-Use **react-three-fiber** (R3F) + **@react-three/drei** + custom GLSL shaders.
+### `users`
+`email` (unique, lowercase), `passwordHash`, `isEmailVerified`, `role` (`user|admin`),
+`refreshTokenHash` (null after logout).
 
-Reference projects to study:
-- [https://github.com/pmndrs/react-three-fiber](https://github.com/pmndrs/react-three-fiber)
-- Search "three.js orb shader" / "glowing sphere WebGL" on ShaderToy
-- Stripe's gradient orb (visual reference for color shifts)
-- Apple Siri orb animation (behavior reference)
+### `otps`
+`email`, `otpHash`, `purpose` (`email_verification|login`), `expiresAt`.
+TTL index on `expiresAt` (`expireAfterSeconds: 0`) + compound `{ email, purpose }`.
+The application re-checks expiry rather than trusting the TTL sweep.
 
-### State Machine
+### `profiles`
+The design decision that shapes everything: **the profile is entity-agnostic**.
+`entityType` may be `individual | company | product | organization`, and the sections
+are named generically so one schema serves all four.
 
 ```
-┌────────┐  user clicks/taps   ┌───────────┐  silence detected   ┌────────────┐  LLM responds   ┌──────────┐
-│  IDLE  │ ──────────────────→ │ LISTENING │ ──────────────────→ │ PROCESSING │ ──────────────→ │ RESPONSE │
-└────────┘                     └───────────┘                     └────────────┘                 └──────────┘
-    ↑                                                                                               │
-    └───────────────────────────────────────────────────────────────────────────────────────────────┘
-                                              conversation ends / timeout
+userId (unique) · username (unique, lowercase) · visibility · protectedPassword
+
+identity      { entityType, name, tagline, bio, about, primaryImage, coverImage,
+                location, foundedOrBorn, industry, availability,
+                resume: { url, parsedText } }
+works[]       project | product | case_study | artwork | research — with screenshots,
+              codeSnippets, technologies, highlights, status, featured
+timeline[]    career | education | certification | award | milestone | product_launch
+capabilities[]  skills, with proficiency + yearsOfExperience
+offerings[]   services/products with price, features, CTA
+metrics[]     headline numbers ("10M requests/day")
+testimonials[]  quotes with relationship (colleague|manager|client|user|investor)
+team[]        members with roles and links
+media[]       image/video gallery
+content[]     blog | talk | paper | video | podcast | course
+social        { links[], email, phone, calendarUrl }
+aiSettings    { provider, apiKey, model, baseUrl }        ← never exposed publicly
+agentPersona  { agentName, tone, verbosity, technicalDepth, speakingSpeed, voiceId }
 ```
 
-### State Details
+Read the sections not as "resume fields" but as **presentation blocks the frontend
+renders and the agent narrates.**
 
-| State | Orb Position | Orb Behavior | Screen Content |
+### `sessions`
+`type`, `status`, `roomName`, `participantIdentity`, `participantToken`, `agentName`,
+`agentDispatchMetadata` (a **string** — kept unparsed so the agent receives it verbatim
+via `ctx.job.metadata`), optional `profileId`, `endedAt`.
+Indexes: `status`, `profileId`, `roomName`, and `{ profileId, status, createdAt: -1 }`
+for the activity queries.
+
+---
+
+## 6. API surface
+
+Global prefix `/api/v1`. Swagger UI at `/docs`. Static uploads at `/uploads/*`.
+
+### Auth — `/auth`
+| Method | Path | Guard | Notes |
 |---|---|---|---|
-| Idle | Center | Soft glow, slow breathe pulse, muted color | "Ask me anything about {name}" |
-| Listening | Center | Expand, brighter color, reactive pulse to audio input | Live transcription text |
-| Processing | Top-right (animated transition) | Steady rotation, color cycling | Reasoning traces (cosmetic) |
-| Response | Top-right | Gentle pulse synced to TTS audio | Answer cards + spoken response |
+| POST | `/register` | — | Creates account, emails verification OTP |
+| POST | `/verify-email` | — | OTP → `isEmailVerified = true` |
+| POST | `/resend-otp` | — | 409 if already verified |
+| POST | `/login` | — | Password. Requires verified email |
+| POST | `/login/otp/request` | — | Passwordless step 1 |
+| POST | `/login/otp` | — | Passwordless step 2 |
+| POST | `/refresh` | — | Rotates the pair; reuse revokes the session |
+| POST | `/logout` | JWT | Nulls `refreshTokenHash` |
 
-### Cosmetic Reasoning Traces
-
-`reasoningTraces.ts` generates contextual traces based on question keywords:
-
-```typescript
-// Example logic (not exhaustive)
-function generateTraces(query: string, profileSections: string[]): string[] {
-  const traces: string[] = [];
-  
-  if (query.match(/project|built|created/i)) {
-    traces.push("Reviewing project portfolio...");
-    traces.push("Analyzing technical contributions...");
-  }
-  if (query.match(/skill|technology|stack/i)) {
-    traces.push("Mapping technical skills...");
-    traces.push("Cross-referencing with project experience...");
-  }
-  if (query.match(/experience|work|company/i)) {
-    traces.push("Scanning professional timeline...");
-    traces.push("Reviewing role responsibilities...");
-  }
-  // ... more patterns
-  
-  traces.push("Composing response...");
-  return traces;
-}
-```
-
-Traces animate in sequentially with staggered fade-in (300-500ms apart) during the actual LLM call.
-
----
-
-## 8. Voice Architecture (LiveKit)
-
-```
-┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│   Visitor    │         │   LiveKit    │         │   NestJS     │
-│   Browser    │         │   Server    │         │   Backend    │
-└──────┬───────┘         └──────┬───────┘         └──────┬───────┘
-       │                        │                        │
-       │  1. Request room token │                        │
-       │────────────────────────┼───────────────────────→│
-       │                        │    2. Generate token   │
-       │←───────────────────────┼────────────────────────│
-       │                        │                        │
-       │  3. Connect to room    │                        │
-       │───────────────────────→│                        │
-       │                        │                        │
-       │  4. Stream audio       │                        │
-       │───────────────────────→│                        │
-       │                        │  5. STT (speech-to-text)
-       │                        │───────────────────────→│
-       │                        │                        │
-       │                        │  6. Process query      │
-       │                        │  (prompt assembly +    │
-       │                        │   LLM call)            │
-       │                        │                        │
-       │                        │  7. TTS response       │
-       │                        │←───────────────────────│
-       │  8. Audio response     │                        │
-       │←───────────────────────│                        │
-       │                        │                        │
-       │  9. Text transcript    │                        │
-       │←───────────────────────┼────────────────────────│
-```
-
-### LiveKit Components
-
-- **LiveKit Server**: Self-hosted (Docker) or LiveKit Cloud
-- **STT**: LiveKit's built-in STT plugin (Deepgram/Whisper)
-- **TTS**: LiveKit's TTS plugin (ElevenLabs/Cartesia/browser TTS)
-- **Agent Framework**: LiveKit Agents SDK (Python) — runs server-side, handles STT → LLM → TTS pipeline
-
-### LiveKit Agent (Python sidecar)
-
-```
-livekit-agent/
-├── agent.py              # Main agent entrypoint
-├── profile_loader.py     # Fetches candidate JSON from NestJS API
-├── prompt_builder.py     # Builds system prompt from profile
-└── requirements.txt
-```
-
-The LiveKit agent connects to the NestJS backend API to fetch candidate profile data and LLM configuration, then handles the real-time voice pipeline.
-
-> **Note**: LiveKit Agents SDK is Python-based. This will be a small Python sidecar alongside the NestJS backend.
-
----
-
-## 9. Database Design (MongoDB)
-
-### Collections
-
-#### `users`
-```json
-{
-  "_id": "ObjectId",
-  "email": "string",
-  "passwordHash": "string",
-  "username": "string (unique, URL-safe)",
-  "isEmailVerified": "boolean",
-  "verificationToken": "string | null",
-  "verificationTokenExpiry": "Date | null",
-  "createdAt": "Date",
-  "updatedAt": "Date"
-}
-```
-
-#### `profiles`
-```json
-{
-  "_id": "ObjectId",
-  "userId": "ObjectId (ref: users)",
-  "username": "string (denormalized for fast lookup)",
-  "visibility": "public | private | protected",
-  "protectedPassword": "string | null",
-
-  "basic": {
-    "name": "string",
-    "title": "string",
-    "profileImage": "string (URL or path)",
-    "introduction": "string",
-    "aboutMe": "string"
-  },
-
-  "professional": {
-    "resume": {
-      "url": "string",
-      "parsedText": "string"
-    },
-    "education": [
-      {
-        "institution": "string",
-        "degree": "string",
-        "field": "string",
-        "startDate": "string",
-        "endDate": "string",
-        "description": "string"
-      }
-    ],
-    "currentPosition": {
-      "title": "string",
-      "company": "string",
-      "startDate": "string",
-      "description": "string"
-    },
-    "experience": [
-      {
-        "title": "string",
-        "company": "string",
-        "startDate": "string",
-        "endDate": "string",
-        "description": "string"
-      }
-    ],
-    "skills": ["string"],
-    "technologies": ["string"],
-    "interests": ["string"],
-    "achievements": ["string"],
-    "certifications": [
-      {
-        "name": "string",
-        "issuer": "string",
-        "date": "string",
-        "url": "string"
-      }
-    ],
-    "awards": ["string"],
-    "additionalNotes": "string"
-  },
-
-  "external": {
-    "linkedin": "string",
-    "github": "string",
-    "twitter": "string",
-    "personalWebsite": "string",
-    "portfolioWebsite": "string",
-    "researchPapers": [
-      {
-        "title": "string",
-        "url": "string",
-        "abstract": "string"
-      }
-    ],
-    "projects": [
-      {
-        "name": "string",
-        "url": "string",
-        "description": "string",
-        "technologies": ["string"]
-      }
-    ],
-    "blogs": ["string"],
-    "otherProfiles": [
-      {
-        "platform": "string",
-        "url": "string"
-      }
-    ]
-  },
-
-  "aiSettings": {
-    "provider": "openai | groq | ollama | custom",
-    "apiKey": "string (encrypted)",
-    "model": "string",
-    "baseUrl": "string | null"
-  },
-
-  "createdAt": "Date",
-  "updatedAt": "Date"
-}
-```
-
-#### `cached_responses`
-```json
-{
-  "_id": "ObjectId",
-  "profileId": "ObjectId",
-  "queryHash": "string (SHA-256 of normalized query)",
-  "query": "string",
-  "response": "string",
-  "createdAt": "Date",
-  "expiresAt": "Date (TTL index)"
-}
-```
-
-### Indexes
-
-```
-users: { email: 1 } (unique), { username: 1 } (unique)
-profiles: { userId: 1 } (unique), { username: 1 } (unique)
-cached_responses: { profileId: 1, queryHash: 1 } (compound unique), { expiresAt: 1 } (TTL)
-```
-
----
-
-## 10. AI Pipeline
-
-No RAG. Direct context injection.
-
-```
-Visitor Query
-      ↓
-Normalize query (lowercase, trim)
-      ↓
-Check cache (profileId + queryHash)
-      ↓  (cache miss)
-Build system prompt:
-  - Role: "You are an AI assistant representing {name}."
-  - Rules: third-person, no hallucination, grounded only in provided data
-  - Full candidate JSON profile injected as context
-      ↓
-Build user prompt:
-  - Visitor's question
-  - Conversation history (last N turns)
-      ↓
-Call LLM (via candidate's configured provider)
-      ↓
-Parse response
-      ↓
-Cache response
-      ↓
-Return to frontend
-      ↓
-(If voice: pipe text to TTS)
-```
-
-### System Prompt Template
-
-```
-You are an AI assistant for PortVilla, representing a professional candidate.
-You act as the candidate's representative — always speak in third person.
-
-Candidate Profile:
-{serialized_json_profile}
-
-Rules:
-1. ONLY use information from the candidate profile above.
-2. NEVER invent, assume, or hallucinate information.
-3. Always refer to the candidate by name in third person.
-   GOOD: "{name} has experience in..."
-   BAD: "I have experience in..."
-4. If information is not available, say: "I don't have that information in {name}'s profile."
-5. Be conversational, professional, and concise.
-6. When listing items (skills, projects), structure them clearly.
-```
-
----
-
-## 11. API Design
-
-### Auth
-
-| Method | Endpoint | Description |
+### Users — `/users`
+| Method | Path | Guard |
 |---|---|---|
-| POST | `/api/auth/register` | Register with email/password |
-| POST | `/api/auth/verify-email` | Verify email with token |
-| POST | `/api/auth/login` | Login, returns JWT |
-| POST | `/api/auth/forgot-password` | Send password reset email |
-| POST | `/api/auth/reset-password` | Reset password with token |
+| GET | `/me` | JWT |
 
-### Profile (Authenticated)
+### Profile — root-mounted
+| Method | Path | Guard | Throttle |
+|---|---|---|---|
+| POST | `/profiles` | JWT | default |
+| GET | `/profiles/username-available?username=` | — | 20/min |
+| GET | `/profiles/public/:username` | — | 30/min |
+| POST | `/profiles/public/:username/unlock` | — | **5/min** (brute-force surface) |
+| GET | `/profiles/me` | JWT | default |
+| PATCH | `/profiles/me` | JWT + Owner | default |
+| POST | `/profiles/me/resume` | JWT + Owner | multipart `resume`, PDF, 5 MB |
+| POST | `/profiles/me/profile-image` | JWT + Owner | multipart `profileImage`, JPEG/PNG/WebP, 2 MB |
+| DELETE | `/profiles/me` | JWT | 204 |
 
-| Method | Endpoint | Description |
+Route ordering matters: `username-available` and the `public/` prefix are declared
+so `:username` can never shadow them.
+
+`PATCH /profiles/me` is deliberately **one endpoint for every section** (see
+`2026-06-02-collapse-patch-endpoints.md`). Array sections are **replace-whole-array**,
+not merge. Scalar identity fields are merged key-by-key via dotted `$set` paths.
+
+### Parser — `/parser`
+| Method | Path | Guard |
 |---|---|---|
-| POST | `/api/profiles` | Create profile |
-| GET | `/api/profiles/me` | Get own profile |
-| PATCH | `/api/profiles/me` | Update profile |
-| PATCH | `/api/profiles/me/basic` | Update basic info section |
-| PATCH | `/api/profiles/me/professional` | Update professional section |
-| PATCH | `/api/profiles/me/external` | Update external sources |
-| PATCH | `/api/profiles/me/ai-settings` | Update AI provider config |
-| PATCH | `/api/profiles/me/visibility` | Toggle public/private/protected |
-| POST | `/api/profiles/me/resume` | Upload resume file |
-| POST | `/api/profiles/me/profile-image` | Upload profile image |
-| DELETE | `/api/profiles/me` | Delete profile and all data |
+| GET | `/github/:username` | JWT |
+| POST | `/github/summarize` | JWT — uses the caller's own `aiSettings` key |
 
-### Public Dashboard
-
-| Method | Endpoint | Description |
+### Session — `/session`
+| Method | Path | Guard |
 |---|---|---|
-| GET | `/api/dashboard/:username` | Get public profile data |
-| POST | `/api/dashboard/:username/verify` | Verify protected profile password |
+| POST | `/` | — (public; a visitor needs a token) |
+| POST | `/webhook` | signature-verified, `@SkipThrottle()` |
+| GET | `/activity` | JWT + Owner |
 
-### AI / Chat
-
-| Method | Endpoint | Description |
+### Agent — `/agent`
+| Method | Path | Guard |
 |---|---|---|
-| POST | `/api/ai/:username/chat` | Send chat message, get AI response |
-| GET | `/api/ai/:username/history` | Get conversation history (session-based) |
+| GET | `/context/:username` | `ServiceTokenGuard` — shared worker secret, **not** a user JWT |
 
-### Voice
+---
 
-| Method | Endpoint | Description |
+## 7. Authentication and authorization
+
+```
+register → bcrypt(12) hash → user row → OTP emailed
+verify-email → isEmailVerified = true
+login → access token (short) + refresh token (long), separate secrets
+authed request → Bearer access token → JwtStrategy re-loads user → JwtAuthGuard
+refresh → verify → compare against stored bcrypt hash → rotate
+```
+
+Guards, in the order they compose:
+- `JwtAuthGuard` — validates the Bearer token; logs *why* a request was rejected.
+- `ProfileOwnerGuard` — requires an existing profile, attaches it to `req.profile`.
+  404 "Complete onboarding first" when absent.
+
+Public-profile access control is in the service, not a guard: `public` returns the
+allowlisted DTO, `private` 404s, `protected` 401s with `{ protected: true }` and no
+body until `/unlock` is called with the right password.
+
+---
+
+## 8. LLM usage — two paths, two keys
+
+This distinction matters and is easy to get wrong.
+
+| Path | Key source | Purpose |
 |---|---|---|
-| POST | `/api/voice/:username/token` | Get LiveKit room token for visitor |
+| `POST /parser/github/summarize` | The **user's** `profile.aiSettings.apiKey` | Their spend, their model |
+| `POST /profiles/me/resume` | **Platform** env: `RESUME_LLM_API_KEY` / `_PROVIDER` / `_MODEL` / `_BASE_URL` | A user in onboarding has no key configured yet |
+| Voice conversation | The **agent worker's** own config | Not in this repo at all |
 
-### Health
+Resume extraction degrades gracefully at every step: no key → `suggestions: null`;
+unparseable PDF → `null`; model returns garbage → `null`. The user just types it
+themselves. Never throws.
 
-| Method | Endpoint | Description |
+`aiSettings.apiKey` is stored **in plaintext** today. Encryption at rest was in the
+original design and has not been implemented.
+
+---
+
+## 9. Configuration and deployment
+
+### Environment
+
+Loaded from `/etc/secrets/portvilla-be/.env` first (the Cloud Run secret mount),
+then `.env`.
+
+| Variable | Required | Read by |
 |---|---|---|
-| GET | `/api/health` | Health check |
+| `PORT`, `NODE_ENV` | — | `main.ts` |
+| `CORS_ORIGINS` | prod only | `main.ts` — dev allows `*`, prod requires an explicit comma-separated list |
+| `MONGODB_URI` | **yes** | `MongooseDatabaseModule` (`getOrThrow`) |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | **yes** | `AuthService`, `JwtStrategy` |
+| `JWT_ACCESS_EXPIRY_SECONDS`, `JWT_REFRESH_EXPIRY_SECONDS` | **yes** | `AuthService` |
+| `MAIL_HOST/PORT/USER/PASSWORD/FROM` | **yes** | `MailService` |
+| `OTP_EXPIRY_MINUTES` | **yes** | `AuthService` |
+| `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | **yes** | `SessionService` |
+| `AGENT_SERVICE_TOKEN` | **yes** | `ServiceTokenGuard` — shared with the worker; min 24 chars |
+| `GITHUB_TOKEN` | optional | Raises GitHub rate limit 60 → 5000/hr |
+| `RESUME_LLM_API_KEY` / `_PROVIDER` / `_MODEL` / `_BASE_URL` | optional | Resume extraction; absent → feature off |
 
----
+Anything marked **yes** uses `getOrThrow` — the app refuses to boot without it.
 
-## 12. Authentication & Authorization
-
-```
-Register → Hash password (bcrypt) → Store user → Send verification email
-    ↓
-Verify Email → Mark isEmailVerified = true
-    ↓
-Login → Validate credentials → Issue JWT (access token, 7d expiry)
-    ↓
-Authenticated requests → JWT in Authorization header → Guard validates
-```
-
-### Guards
-
-- `JwtAuthGuard` — validates JWT on protected routes
-- `ProfileOwnerGuard` — ensures user can only edit their own profile
-- `ProfileVisibilityGuard` — checks public/private/protected on dashboard routes
-
-### API Key Security
-
-Candidate API keys are encrypted at rest (AES-256) before storing in MongoDB. Decrypted only server-side when making LLM calls.
-
----
-
-## 13. Dashboard Generation Flow
-
-Dashboard is **not pre-generated** — it's rendered client-side from the profile JSON.
-
-```
-Visitor hits portvilla.in/username
-    ↓
-React app loads
-    ↓
-Fetches GET /api/dashboard/:username
-    ↓
-Backend returns profile JSON (minus sensitive fields like apiKey)
-    ↓
-React renders dashboard components from JSON:
-  - CandidateOverview (basic.name, basic.title, basic.introduction)
-  - SkillsSection (professional.skills, professional.technologies)
-  - TimelineSection (professional.education + professional.experience, sorted by date)
-  - ProjectsSection (external.projects)
-  - ExperienceSection (professional.experience)
-  - SocialLinks (external.linkedin, external.github, etc.)
-  - AI Orb (always present)
-```
-
----
-
-## 14. URL & Sharing Flow
-
-### URL Format
-
-```
-portvilla.in/{username}
-```
-
-### Visibility Modes
-
-| Mode | Behavior |
-|---|---|
-| Public | Anyone with the link can view and interact |
-| Private | Only the candidate can view (logged in) |
-| Protected | Visitors must enter a password set by candidate |
-
-### Username Rules
-
-- Alphanumeric + hyphens
-- 3-30 characters
-- Unique
-- Reserved words blocked (admin, api, auth, settings, etc.)
-
----
-
-## 15. Candidate Analytics (Future Phase)
-
-### Designed but not implemented in MVP
-
-Schema reserved in profile:
-
-```json
-{
-  "analytics": {
-    "totalViews": "number",
-    "uniqueVisitors": "number",
-    "conversations": "number",
-    "topQuestions": ["string"],
-    "avgSessionDuration": "number",
-    "viewsByDate": [{ "date": "Date", "count": "number" }]
-  }
-}
-```
-
-Implementation deferred — would require a `page_views` collection and an analytics aggregation pipeline.
-
----
-
-## 16. Security Considerations
-
-| Concern | Mitigation |
-|---|---|
-| API key storage | AES-256 encryption at rest |
-| Password storage | bcrypt (12 rounds) |
-| Authentication | JWT with expiry, httpOnly cookies optional |
-| Input validation | Zod (frontend) + class-validator (NestJS) on all inputs |
-| XSS | React's default escaping + DOMPurify for any rich text |
-| CSRF | SameSite cookies or token-based if using cookies |
-| Rate limiting | `@nestjs/throttler` on auth + AI endpoints |
-| LLM prompt injection | System prompt is server-side only, user input is in user message role |
-| Data deletion | Full profile + cached responses deletion on account delete |
-| File uploads | Validate file type + size, store in object storage |
-| CORS | Whitelist frontend origin only |
-
----
-
-## 17. Folder Structure (Full Project)
-
-```
-portvilla/
-├── README.md
-├── docker-compose.yml
-├── .env.example
-│
-├── client/                           # React (Vite)
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tsconfig.json
-│   ├── tailwind.config.ts
-│   ├── index.html
-│   ├── public/
-│   └── src/
-│       ├── main.tsx
-│       ├── App.tsx
-│       ├── routes/
-│       ├── components/
-│       ├── hooks/
-│       ├── stores/
-│       ├── lib/
-│       └── assets/
-│
-├── server/                           # NestJS
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── nest-cli.json
-│   └── src/
-│       ├── main.ts
-│       ├── app.module.ts
-│       ├── config/
-│       ├── auth/
-│       ├── mail/
-│       ├── users/
-│       ├── profiles/
-│       ├── ai/
-│       ├── voice/
-│       ├── dashboard/
-│       └── common/
-│
-├── livekit-agent/                    # Python LiveKit Agent
-│   ├── requirements.txt
-│   ├── agent.py
-│   ├── profile_loader.py
-│   └── prompt_builder.py
-│
-└── docs/
-    └── api.md
-```
-
----
-
-## 18. Deployment Architecture (High-Level)
-
-```
-                    ┌──────────────┐
-                    │   Nginx /    │
-                    │  Caddy       │
-                    │  (reverse    │
-                    │   proxy)     │
-                    └──────┬───────┘
-                           │
-              ┌────────────┼────────────┐
-              │            │            │
-              ▼            ▼            ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────────┐
-        │  React   │ │  NestJS  │ │  LiveKit     │
-        │  Static  │ │  API     │ │  Server +    │
-        │  (CDN/   │ │  :3001   │ │  Agent       │
-        │   Nginx) │ │          │ │  :7880       │
-        └──────────┘ └──────────┘ └──────────────┘
-                           │
-                           ▼
-                    ┌──────────────┐
-                    │   MongoDB    │
-                    │   :27017     │
-                    └──────────────┘
-```
-
-All services containerized with Docker Compose for easy self-hosting.
-
----
-
-## 19. Development Phases
-
-### Phase 1 — MVP (Core)
-
-- [x] Project scaffolding (NestJS + React + Vite)
-- [ ] Auth (register, login, email verification, JWT)
-- [ ] Onboarding form (multi-step, all sections)
-- [ ] Profile CRUD (JSON storage in MongoDB)
-- [ ] Public dashboard page (client-side rendered from JSON)
-- [ ] AI chat (direct context injection, BYOK)
-- [ ] Orb UI (Three.js — 4 states with animations)
-- [ ] Cosmetic reasoning traces
-- [ ] Response rendering (text + basic cards)
-- [ ] Query-response caching
-- [ ] Public/Private/Protected visibility
-- [ ] Shareable URL (portvilla.in/username)
-- [ ] File uploads (resume, profile image)
-- [ ] Docker Compose setup
-
-### Phase 2 — Voice + Polish
-
-- [ ] LiveKit integration (STT + TTS)
-- [ ] LiveKit Python agent
-- [ ] Voice-reactive orb (audio-level based animation)
-- [ ] Live transcription display
-- [ ] Conversation history
-- [ ] Open-source model support (Groq, Ollama)
-- [ ] Profile edit page
-- [ ] Mobile responsive design
-- [ ] SEO meta tags for shared links
-
-### Phase 3 — Knowledge Graph + Analytics
-
-- [ ] Neo4j knowledge graph per candidate
-- [ ] Graph generation pipeline
-- [ ] Knowledge graph visualization in dashboard
-- [ ] Candidate analytics (views, conversations, top questions)
-- [ ] Analytics dashboard for candidates
-- [ ] Resume parsing (auto-fill from uploaded resume)
-- [ ] LinkedIn/GitHub data import
-
-### Phase 4 — Community + Scale
-
-- [ ] Custom themes for portfolios
-- [ ] Custom domain support
-- [ ] Plugin system for additional data sources
-- [ ] Public API for integrations
-- [ ] Performance optimization (edge caching, CDN)
-
----
-
-## 20. Cost Estimation (Self-Hosted)
-
-| Component | Cost |
-|---|---|
-| VM (4 vCPU, 8GB RAM) | ~$20-40/mo |
-| MongoDB | Self-hosted (included in VM) |
-| LiveKit Server | Self-hosted (included in VM) |
-| Domain (portvilla.in) | Already owned |
-| LLM API costs | Borne by candidates (BYOK) |
-| SSL | Free (Let's Encrypt) |
-| **Total base cost** | **~$20-40/mo** |
-
----
-
-## 21. Risks & Mitigation
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Orb UI complexity | High dev time | Start with simpler shader, iterate. Use existing Three.js examples as base |
-| LiveKit setup complexity | Blocks voice feature | Keep voice in Phase 2, chat-only MVP works standalone |
-| LLM context window limits | Large profiles may exceed limits | Truncate/summarize sections, prioritize relevant data |
-| API key security breach | Candidate keys exposed | AES-256 encryption, audit logging, key rotation support |
-| Low adoption | Effort wasted | Open source = community contribution, low maintenance burden |
-| Browser STT compatibility | Voice doesn't work everywhere | Fallback to chat, show browser compatibility warning |
-
----
-
-## 22. Getting Started (Dev Setup)
+### Local
 
 ```bash
-# Clone repo
-git clone https://github.com/your-org/portvilla.git
-cd portvilla
-
-# Start MongoDB
-docker-compose up -d mongodb
-
-# Backend
-cd server
-cp .env.example .env
-npm install
-npm run start:dev
-
-# Frontend
-cd ../client
-cp .env.example .env
-npm install
-npm run dev
-
-# LiveKit Agent (Phase 2)
-cd ../livekit-agent
-pip install -r requirements.txt
-python agent.py
+pnpm install          # pnpm, NOT npm — npm breaks on the pnpm node_modules layout
+pnpm run start:dev
+LOG_LEVEL=debug pnpm run start:dev   # debug/verbose are suppressed otherwise
 ```
 
-### Environment Variables
+`docker-compose.yml` brings up the API plus MongoDB 7 with a healthcheck gate and a
+bind-mounted `./uploads`.
 
-```env
-# server/.env
-PORT=3001
-MONGODB_URI=mongodb://localhost:27017/portvilla
-JWT_SECRET=your-jwt-secret
-JWT_EXPIRY=7d
-ENCRYPTION_KEY=your-32-byte-hex-key
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-LIVEKIT_API_KEY=your-livekit-key
-LIVEKIT_API_SECRET=your-livekit-secret
-LIVEKIT_URL=ws://localhost:7880
+### Production
 
-# client/.env
-VITE_API_URL=http://localhost:3001/api
-VITE_LIVEKIT_URL=ws://localhost:7880
-```
+GitHub Actions on push to `main` → `gcloud run deploy portvilla-be --source .`,
+512 Mi / 1 CPU, `--allow-unauthenticated`, env injected via
+`--set-secrets=/etc/secrets/portvilla-be/.env=…`.
+
+---
+
+## 10. Known gaps and defects
+
+Ordered by severity. These are the things to fix, not aspirations.
+
+### 🔴 Only the intro agent is deployed
+`portvilla-agent`'s `Dockerfile` entrypoint is `python -m agent.main start`, and
+`k8s/deployment.yaml` declares one Deployment. `AgentServer` accepts exactly one
+`rtc_session`, so `agent.main` is the **intro** agent and nothing runs
+`python -m agent.portfolio start`. The portfolio agent is therefore never dispatched in
+production, even though the worker itself is migrated and the `agent_name` mismatch is
+fixed. Needs a second Deployment (or container) plus `AGENT_SERVICE_TOKEN` in the secret.
+
+### ✅ Agent dispatch name mismatch — fixed
+`AgentName.PORTFOLIO` is now `'portvilla-portfolio'`, matching the worker's registration.
+Kept here only because the failure mode is worth remembering: LiveKit accepts a dispatch
+for an unregistered name and silently never routes it.
+
+Historical detail below.
+The worker registers `@server.rtc_session(agent_name="portvilla-portfolio")`.
+LiveKit will never dispatch the portfolio agent. (`WELCOME = 'portvilla-intro'`
+matches `main.py` correctly.)
+
+### 🔴 Uploads are lost on Cloud Run
+`upload.config.ts` writes to `process.cwd()/uploads` on a container whose filesystem
+is per-instance and in-memory. Files vanish on deploy or scale-to-zero, and with
+`maxScale 20` a file written by one instance 404s from another. Also consumes the
+512 Mi allocation. `docs/decisions/2026-08-26-media-uploads-r2.md` proposes a
+direct-to-R2 pipeline; it is **Proposed, unimplemented, and untracked in git**.
+
+### 🟡 `aiSettings.apiKey` stored in plaintext
+Original design called for AES-256 at rest. Not done.
+
+### 🟡 `.env.example` has drifted
+Missing `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` (all `getOrThrow` —
+the app will not boot without them) and the whole `RESUME_LLM_*` group. A fresh
+clone following `.env.example` fails at startup.
+
+### 🟡 Decision-doc statuses are stale
+Five docs are marked `Proposed` but are fully implemented in code: resume parsing,
+session activity, username availability, public profile endpoint, parser module
+architecture. Statuses should be flipped to `Accepted`.
+
+### 🟢 Smaller inconsistencies
+- `ProfileRepository.create()` accepts `agentPersona` in `CreateProfileData` but
+  never writes it — the schema default silently covers this.
+- `profile` bypasses `DB_MODEL_REGISTRY` with its own `PROFILE_MODEL` constant.
+- `shared/configuration/*.config.ts` `registerAs` factories are never registered.
+- `TransactionRunner` is written but unused.
+- `shared/queue/*` — empty stub files.
+- No tests. `test/` exists, `jest` is configured, zero `.spec.ts` files in `src/`.
+- Typo in a directory name that appears in real import paths:
+  `auth/infrastructure/scehma/` and `parser/infrastructure/scehma/` (sic).
+- `GET /` still returns the scaffolded hello string; there is no real health check.
+
+---
+
+## 11. Roadmap
+
+### Now — unblock voice
+The narrative layer (Phases 0–5) is **built and verified end to end**: stable entry keys,
+`stages[]`, the slide projector, `/agent/context/:username`, the migrated worker, and the
+frontend renderers plus stage editor. Its decision doc remains the reference for the
+contract and carries the per-phase record:
+[`docs/decisions/2026-08-29-narrative-layer-stages-and-slide-catalog.md`](../decisions/2026-08-29-narrative-layer-stages-and-slide-catalog.md).
+**Read it before starting any agent, slide, or profile-schema work.**
+
+What still stands between this and working voice in production, both outside every phase:
+
+1. **Deploy the portfolio agent** — see §10; only the intro agent has an entrypoint.
+2. **Gate session creation on visibility** — `SessionService.createUserSession` mints a
+   token for `private` and `protected` profiles, which `/agent/context` then refuses. The
+   same gate, enforced in one place and not the other.
+3. Sync `.env.example` with reality.
+
+### Next — make production honest
+4. Implement the R2 upload pipeline (or an equivalent durable object store).
+5. Encrypt `aiSettings.apiKey` at rest.
+6. Real health endpoint (DB ping) for Cloud Run.
+7. First tests: username rules, the public-profile allowlist, webhook signature
+   handling — the three places where a regression is silent and expensive.
+
+### Later
+8. Response caching for the agent (`cached_responses` was designed, never built).
+9. Analytics beyond `/session/activity` — page views, top questions.
+10. More parser platforms (`Platform` enum currently has one member).
+11. Conversation transcript persistence.

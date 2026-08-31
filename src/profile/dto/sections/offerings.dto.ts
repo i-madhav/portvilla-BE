@@ -10,6 +10,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+import { IsEntryKey } from '../entry-key.decorator';
+
 export class OfferingCtaDto {
   @ApiProperty({ example: 'Get started' })
   @IsString()
@@ -22,6 +24,9 @@ export class OfferingCtaDto {
 }
 
 export class OfferingEntryDto {
+  @IsEntryKey()
+  key?: string;
+
   @ApiProperty({ example: 'Pro Plan' })
   @IsString()
   @IsNotEmpty()
@@ -32,7 +37,11 @@ export class OfferingEntryDto {
   @IsNotEmpty()
   description!: string;
 
-  @ApiPropertyOptional({ example: 'Zap', description: 'Lucide icon name', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Zap',
+    description: 'Lucide icon name',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   icon?: string | null;

@@ -14,11 +14,14 @@ import {
   AgentVerbosity,
   AgentTechnicalDepth,
   AgentSpeakingSpeed,
+  WORK_STATUSES,
 } from '../../domain/profile.interface';
 import type {
   IProfile,
   IdentitySection,
   WorkEntry,
+  StageEntry,
+  WorkStatus,
   TimelineEntry,
   CapabilityEntry,
   OfferingEntry,
@@ -33,6 +36,13 @@ import type {
 } from '../../domain/profile.interface';
 
 // ─── Sub-document Schemas ─────────────────────────────────────────────────────
+
+/**
+ * `key` is required but has no schema-level default on purpose: the repository
+ * is the single place that mints keys (see `domain/entry-key.ts`). A default
+ * here would be a second, silent generator that could disagree with it.
+ */
+const KEY_PROP = { type: String, required: true } as const;
 
 @Schema({ _id: false })
 class ResumeSubDoc {
@@ -79,7 +89,10 @@ class IdentitySubDoc implements IdentitySection {
   @Prop({ type: String, default: null })
   availability!: string | null;
 
-  @Prop({ type: ResumeSchema, default: () => ({ url: null, parsedText: null }) })
+  @Prop({
+    type: ResumeSchema,
+    default: () => ({ url: null, parsedText: null }),
+  })
   resume!: { url: string | null; parsedText: string | null };
 }
 const IdentitySchema = SchemaFactory.createForClass(IdentitySubDoc);
@@ -108,7 +121,42 @@ class CodeSnippetSubDoc {
 const CodeSnippetSchema = SchemaFactory.createForClass(CodeSnippetSubDoc);
 
 @Schema({ _id: false })
+class StageSubDoc implements StageEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
+  @Prop({ required: true })
+  label!: string;
+
+  @Prop({
+    type: String,
+    enum: [...WORK_STATUSES],
+    default: 'completed',
+  })
+  status!: WorkStatus;
+
+  @Prop({ required: true })
+  summary!: string;
+
+  @Prop({ type: String, default: null })
+  detail!: string | null;
+
+  @Prop({ type: String, default: null })
+  date!: string | null;
+
+  @Prop({ type: String, default: null })
+  endDate!: string | null;
+
+  @Prop({ type: [String], default: [] })
+  highlights!: string[];
+}
+const StageSchema = SchemaFactory.createForClass(StageSubDoc);
+
+@Schema({ _id: false })
 class WorkSubDoc implements WorkEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true, enum: WorkType, default: WorkType.PROJECT })
   type!: WorkType;
 
@@ -141,10 +189,10 @@ class WorkSubDoc implements WorkEntry {
 
   @Prop({
     type: String,
-    enum: ['active', 'completed', 'in-progress', 'archived'],
+    enum: [...WORK_STATUSES],
     default: 'completed',
   })
-  status!: 'active' | 'completed' | 'in-progress' | 'archived';
+  status!: WorkStatus;
 
   @Prop({ type: [String], default: [] })
   highlights!: string[];
@@ -153,15 +201,25 @@ class WorkSubDoc implements WorkEntry {
   featured!: boolean;
 
   @Prop({ type: [CodeSnippetSchema], default: [] })
-  codeSnippets!: { language: string; code: string; description: string | null }[];
+  codeSnippets!: {
+    language: string;
+    code: string;
+    description: string | null;
+  }[];
 
   @Prop({ type: String, default: null })
   date!: string | null;
+
+  @Prop({ type: [StageSchema], default: [] })
+  stages!: StageEntry[];
 }
 const WorkSchema = SchemaFactory.createForClass(WorkSubDoc);
 
 @Schema({ _id: false })
 class TimelineSubDoc implements TimelineEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true, enum: TimelineCategory })
   category!: TimelineCategory;
 
@@ -193,6 +251,9 @@ const TimelineSchema = SchemaFactory.createForClass(TimelineSubDoc);
 
 @Schema({ _id: false })
 class CapabilitySubDoc implements CapabilityEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true })
   name!: string;
 
@@ -205,7 +266,11 @@ class CapabilitySubDoc implements CapabilityEntry {
   @Prop({ type: String, default: null })
   category!: string | null;
 
-  @Prop({ type: String, enum: [...Object.values(CapabilityProficiency), null], default: null })
+  @Prop({
+    type: String,
+    enum: [...Object.values(CapabilityProficiency), null],
+    default: null,
+  })
   proficiency!: CapabilityProficiency | null;
 
   @Prop({ type: Number, default: null })
@@ -225,6 +290,9 @@ const CtaSchema = SchemaFactory.createForClass(CtaSubDoc);
 
 @Schema({ _id: false })
 class OfferingSubDoc implements OfferingEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true })
   name!: string;
 
@@ -253,6 +321,9 @@ const OfferingSchema = SchemaFactory.createForClass(OfferingSubDoc);
 
 @Schema({ _id: false })
 class MetricSubDoc implements MetricEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true })
   value!: string;
 
@@ -272,6 +343,9 @@ const MetricSchema = SchemaFactory.createForClass(MetricSubDoc);
 
 @Schema({ _id: false })
 class TestimonialSubDoc implements TestimonialEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true })
   text!: string;
 
@@ -320,6 +394,9 @@ const TeamLinkSchema = SchemaFactory.createForClass(TeamLinkSubDoc);
 
 @Schema({ _id: false })
 class TeamMemberSubDoc implements TeamMemberEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true })
   name!: string;
 
@@ -339,6 +416,9 @@ const TeamMemberSchema = SchemaFactory.createForClass(TeamMemberSubDoc);
 
 @Schema({ _id: false })
 class MediaSubDoc implements MediaEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true })
   url!: string;
 
@@ -355,6 +435,9 @@ const MediaSchema = SchemaFactory.createForClass(MediaSubDoc);
 
 @Schema({ _id: false })
 class ContentSubDoc implements ContentEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true, enum: ContentType })
   type!: ContentType;
 
@@ -421,13 +504,25 @@ class AgentPersonaSubDoc implements AgentPersonaSection {
   @Prop({ required: true, enum: AgentTone, default: AgentTone.BALANCED })
   tone!: AgentTone;
 
-  @Prop({ required: true, enum: AgentVerbosity, default: AgentVerbosity.CONCISE })
+  @Prop({
+    required: true,
+    enum: AgentVerbosity,
+    default: AgentVerbosity.CONCISE,
+  })
   verbosity!: AgentVerbosity;
 
-  @Prop({ required: true, enum: AgentTechnicalDepth, default: AgentTechnicalDepth.MEDIUM })
+  @Prop({
+    required: true,
+    enum: AgentTechnicalDepth,
+    default: AgentTechnicalDepth.MEDIUM,
+  })
   technicalDepth!: AgentTechnicalDepth;
 
-  @Prop({ required: true, enum: AgentSpeakingSpeed, default: AgentSpeakingSpeed.NORMAL })
+  @Prop({
+    required: true,
+    enum: AgentSpeakingSpeed,
+    default: AgentSpeakingSpeed.NORMAL,
+  })
   speakingSpeed!: AgentSpeakingSpeed;
 
   @Prop({ type: String, default: null })
@@ -439,13 +534,22 @@ const AgentPersonaSchema = SchemaFactory.createForClass(AgentPersonaSubDoc);
 
 @Schema({ timestamps: true, collection: 'profiles' })
 class Profile implements IProfile {
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'User', required: true, unique: true })
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'User',
+    required: true,
+    unique: true,
+  })
   userId!: Types.ObjectId;
 
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   username!: string;
 
-  @Prop({ required: true, enum: ProfileVisibility, default: ProfileVisibility.PUBLIC })
+  @Prop({
+    required: true,
+    enum: ProfileVisibility,
+    default: ProfileVisibility.PUBLIC,
+  })
   visibility!: ProfileVisibility;
 
   @Prop({ type: String, default: null })
@@ -489,7 +593,12 @@ class Profile implements IProfile {
 
   @Prop({
     type: AiSettingsSchema,
-    default: () => ({ provider: LlmProvider.OPENAI, apiKey: null, model: null, baseUrl: null }),
+    default: () => ({
+      provider: LlmProvider.OPENAI,
+      apiKey: null,
+      model: null,
+      baseUrl: null,
+    }),
   })
   aiSettings!: AiSettingsSection;
 

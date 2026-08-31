@@ -11,7 +11,12 @@ import {
 
 import { ContentType } from '../../domain/profile.interface';
 
+import { IsEntryKey } from '../entry-key.decorator';
+
 export class ContentEntryDto {
+  @IsEntryKey()
+  key?: string;
+
   @ApiProperty({ enum: ContentType })
   @IsEnum(ContentType)
   type!: ContentType;
@@ -25,12 +30,18 @@ export class ContentEntryDto {
   @IsUrl()
   url!: string;
 
-  @ApiPropertyOptional({ example: 'A deep dive into orchestrating multiple LLM agents.', nullable: true })
+  @ApiPropertyOptional({
+    example: 'A deep dive into orchestrating multiple LLM agents.',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   description?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://example.com/thumbnail.jpg', nullable: true })
+  @ApiPropertyOptional({
+    example: 'https://example.com/thumbnail.jpg',
+    nullable: true,
+  })
   @IsUrl()
   @IsOptional()
   thumbnailUrl?: string | null;

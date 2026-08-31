@@ -86,6 +86,18 @@ async function bootstrap(): Promise<void> {
     )
     .setVersion('1.0')
     .addBearerAuth()
+    // The worker↔backend shared secret guarding GET /agent/context/:username.
+    // Declared separately from the user bearer scheme so "Authorize" in Swagger
+    // does not offer a service secret where an access token belongs.
+    .addApiKey(
+      {
+        type: 'apiKey',
+        name: 'Authorization',
+        in: 'header',
+        description: 'Service token as `Bearer <AGENT_SERVICE_TOKEN>`.',
+      },
+      'service-token',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

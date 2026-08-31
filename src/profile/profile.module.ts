@@ -14,6 +14,8 @@ import {
 } from './infrastructure/repository/profile.repository';
 import { ProfileSchema } from './infrastructure/schema/profile.schema';
 import { ProfileOwnerGuard } from './guards/profile-owner.guard';
+import { ResumeSuggestionsService } from './resume/resume-suggestions.service';
+import { ResumeTextExtractor } from './resume/resume-text.extractor';
 
 @Module({
   imports: [
@@ -26,6 +28,10 @@ import { ProfileOwnerGuard } from './guards/profile-owner.guard';
     ProfileService,
     { provide: PROFILE_REPOSITORY, useClass: ProfileRepository },
     ProfileOwnerGuard,
+    // The resume pipeline: PDF text extraction, then an optional LLM draft on
+    // platform credentials. LlmModule is imported for the latter.
+    ResumeTextExtractor,
+    ResumeSuggestionsService,
   ],
   exports: [PROFILE_REPOSITORY, ProfileOwnerGuard],
 })

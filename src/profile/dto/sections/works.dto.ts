@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -7,11 +8,18 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-import { WorkType } from '../../domain/profile.interface';
+import { WorkType, WORK_STATUSES } from '../../domain/profile.interface';
+import {
+  MAX_STAGES_PER_WORK,
+  STAGE_SUMMARY_MAX_LENGTH,
+} from '../../domain/section-limits';
+
+import { IsEntryKey } from '../entry-key.decorator';
 
 export class ScreenshotDto {
   @ApiProperty({ example: 'https://example.com/screenshot.png' })
@@ -41,7 +49,60 @@ export class CodeSnippetDto {
   description?: string | null;
 }
 
+export class StageEntryDto {
+  @IsEntryKey()
+  key?: string;
+
+  @ApiProperty({ example: 'Private beta' })
+  @IsString()
+  @IsNotEmpty()
+  label!: string;
+
+  @ApiPropertyOptional({ enum: [...WORK_STATUSES], default: 'completed' })
+  @IsEnum(WORK_STATUSES)
+  @IsOptional()
+  status?: (typeof WORK_STATUSES)[number];
+
+  @ApiProperty({
+    example: 'We opened it to 50 hand-picked teams and watched what broke.',
+    maxLength: STAGE_SUMMARY_MAX_LENGTH,
+    description:
+      'Narrated aloud, so it must fit one breath. Put the long version in `detail`.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(STAGE_SUMMARY_MAX_LENGTH)
+  summary!: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Served only when the visitor asks to go deeper.',
+  })
+  @IsString()
+  @IsOptional()
+  detail?: string | null;
+
+  @ApiPropertyOptional({ example: '2024-03', nullable: true })
+  @IsString()
+  @IsOptional()
+  date?: string | null;
+
+  @ApiPropertyOptional({ example: '2024-06', nullable: true })
+  @IsString()
+  @IsOptional()
+  endDate?: string | null;
+
+  @ApiPropertyOptional({ example: ['500 signups in the first week'] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  highlights?: string[];
+}
+
 export class WorkEntryDto {
+  @IsEntryKey()
+  key?: string;
+
   @ApiProperty({ enum: WorkType, default: WorkType.PROJECT })
   @IsEnum(WorkType)
   type!: WorkType;
@@ -51,12 +112,17 @@ export class WorkEntryDto {
   @IsNotEmpty()
   name!: string;
 
-  @ApiPropertyOptional({ example: 'AI-powered portfolio platform', nullable: true })
+  @ApiPropertyOptional({
+    example: 'AI-powered portfolio platform',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   tagline?: string | null;
 
-  @ApiProperty({ example: 'A platform that generates interactive portfolios using AI.' })
+  @ApiProperty({
+    example: 'A platform that generates interactive portfolios using AI.',
+  })
   @IsString()
   description!: string;
 
@@ -65,7 +131,10 @@ export class WorkEntryDto {
   @IsOptional()
   url?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://github.com/user/portvilla', nullable: true })
+  @ApiPropertyOptional({
+    example: 'https://github.com/user/portvilla',
+    nullable: true,
+  })
   @IsUrl()
   @IsOptional()
   repoUrl?: string | null;
@@ -94,12 +163,14 @@ export class WorkEntryDto {
   @IsOptional()
   tags?: string[];
 
-  @ApiPropertyOptional({ enum: ['active', 'completed', 'in-progress', 'archived'], default: 'completed' })
-  @IsEnum(['active', 'completed', 'in-progress', 'archived'])
+  @ApiPropertyOptional({ enum: [...WORK_STATUSES], default: 'completed' })
+  @IsEnum(WORK_STATUSES)
   @IsOptional()
-  status?: 'active' | 'completed' | 'in-progress' | 'archived';
+  status?: (typeof WORK_STATUSES)[number];
 
-  @ApiPropertyOptional({ example: ['Reduced latency by 40%', 'Onboarded 500 users in first week'] })
+  @ApiPropertyOptional({
+    example: ['Reduced latency by 40%', 'Onboarded 500 users in first week'],
+  })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
@@ -121,4 +192,17 @@ export class WorkEntryDto {
   @IsString()
   @IsOptional()
   date?: string | null;
+
+  @ApiPropertyOptional({
+    type: [StageEntryDto],
+    description:
+      "The work's arc, in the order it should be narrated. Array order is the " +
+      'only ordering — there is no order field.',
+  })
+  @IsArray()
+  @ArrayMaxSize(MAX_STAGES_PER_WORK)
+  @ValidateNested({ each: true })
+  @Type(() => StageEntryDto)
+  @IsOptional()
+  stages?: StageEntryDto[];
 }

@@ -13,10 +13,12 @@ export enum SessionStatus {
   ENDED = 'ended',
 }
 
-// Must exactly match the `agent_name` values registered in the Python worker.
+// Must exactly match the `agent_name` values registered in the Python worker —
+// `@server.rtc_session(agent_name=...)` in `agent/main.py` and `agent/portfolio.py`.
+// A mismatch is silent: LiveKit accepts the dispatch and simply never routes it.
 export enum AgentName {
   WELCOME = 'portvilla-intro',
-  PORTFOLIO = 'portfolio-agent',
+  PORTFOLIO = 'portvilla-portfolio',
 }
 
 // ─── Persisted document shape ─────────────────────────────────────────────────

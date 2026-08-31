@@ -4,8 +4,9 @@ import {
   TimelineCategory,
   WorkType,
   type CapabilityEntry,
+  type EntryInput,
   type TimelineEntry,
-  type WorkEntry,
+  type WorkEntryInput,
 } from '../domain/profile.interface';
 import type { ResumeExtraction } from '../../llm/resume-extraction.types';
 import { ProfileDataResponseDto } from './profile-data-response.dto';
@@ -18,22 +19,25 @@ class ResumeIdentitySuggestionDto {
 }
 
 /**
- * Draft entries extracted from a resume, shaped as full profile entries so the
+ * Draft entries extracted from a resume, shaped as profile entries so the
  * frontend can drop them straight into its editors. These are NEVER persisted
  * by the server — they are returned for the user to review and confirm.
+ *
+ * They are `EntryInput`s rather than stored entries: a suggestion has no `key`
+ * until the user accepts it and the repository writes it.
  */
 export class ResumeSuggestionsDto {
   @ApiProperty({ type: ResumeIdentitySuggestionDto, nullable: true })
   identity!: ResumeIdentitySuggestionDto | null;
 
   @ApiProperty({ type: 'array', items: { type: 'object' } })
-  capabilities!: CapabilityEntry[];
+  capabilities!: EntryInput<CapabilityEntry>[];
 
   @ApiProperty({ type: 'array', items: { type: 'object' } })
-  timeline!: TimelineEntry[];
+  timeline!: EntryInput<TimelineEntry>[];
 
   @ApiProperty({ type: 'array', items: { type: 'object' } })
-  works!: WorkEntry[];
+  works!: WorkEntryInput[];
 
   /** Map the raw extraction onto complete profile entries with every field defaulted. */
   static fromExtraction(extraction: ResumeExtraction): ResumeSuggestionsDto {
@@ -79,6 +83,7 @@ export class ResumeSuggestionsDto {
       featured: false,
       codeSnippets: [],
       date: null,
+      stages: [],
     }));
 
     return dto;

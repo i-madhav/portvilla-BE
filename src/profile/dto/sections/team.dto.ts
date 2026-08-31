@@ -9,6 +9,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+import { IsEntryKey } from '../entry-key.decorator';
+
 export class TeamLinkDto {
   @ApiProperty({ example: 'github' })
   @IsString()
@@ -21,6 +23,9 @@ export class TeamLinkDto {
 }
 
 export class TeamMemberEntryDto {
+  @IsEntryKey()
+  key?: string;
+
   @ApiProperty({ example: 'Jane Doe' })
   @IsString()
   @IsNotEmpty()
@@ -31,12 +36,18 @@ export class TeamMemberEntryDto {
   @IsNotEmpty()
   role!: string;
 
-  @ApiPropertyOptional({ example: 'Jane leads all engineering at Acme.', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Jane leads all engineering at Acme.',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   bio?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg', nullable: true })
+  @ApiPropertyOptional({
+    example: 'https://example.com/avatar.jpg',
+    nullable: true,
+  })
   @IsUrl()
   @IsOptional()
   avatarUrl?: string | null;
