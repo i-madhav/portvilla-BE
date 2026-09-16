@@ -5,6 +5,7 @@ import type {
   SocialSection,
   AiSettingsSection,
   AgentPersonaSection,
+  AgentStackSection,
   EntryInput,
   WorkEntryInput,
   TimelineEntry,
@@ -45,6 +46,7 @@ export interface CreateProfileData {
   social: SocialSection;
   aiSettings: AiSettingsSection;
   agentPersona: AgentPersonaSection;
+  agentStack: AgentStackSection;
 }
 
 // ─── Repository Interface ─────────────────────────────────────────────────────

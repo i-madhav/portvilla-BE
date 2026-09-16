@@ -14,8 +14,16 @@ import {
   AgentVerbosity,
   AgentTechnicalDepth,
   AgentSpeakingSpeed,
+  ListenMode,
+  PipelineKind,
+  ReplyLanguage,
+  TurnPatience,
   WORK_STATUSES,
 } from '../../domain/profile.interface';
+import {
+  DEFAULT_AGENT_STACK,
+  defaultAgentStack,
+} from '../../domain/agent-stack/catalog';
 import type {
   IProfile,
   IdentitySection,
@@ -33,6 +41,12 @@ import type {
   SocialSection,
   AiSettingsSection,
   AgentPersonaSection,
+  AgentStackSection,
+  AgentStackLanguage,
+  AgentStackStt,
+  AgentStackLlm,
+  AgentStackTts,
+  AgentStackTurnTaking,
 } from '../../domain/profile.interface';
 
 // ─── Sub-document Schemas ─────────────────────────────────────────────────────
@@ -517,18 +531,132 @@ class AgentPersonaSubDoc implements AgentPersonaSection {
     default: AgentTechnicalDepth.MEDIUM,
   })
   technicalDepth!: AgentTechnicalDepth;
+}
+const AgentPersonaSchema = SchemaFactory.createForClass(AgentPersonaSubDoc);
+
+// ─── Agent stack ──────────────────────────────────────────────────────────────
+// Model ids are plain strings here: the catalog, not the schema, decides which
+// are allowed (`domain/agent-stack/catalog.ts`), so retiring a model is a data
+// change, not a migration. The closed vocabularies are enums as usual.
+
+@Schema({ _id: false })
+class AgentStackLanguageSubDoc implements AgentStackLanguage {
+  @Prop({ required: true, default: DEFAULT_AGENT_STACK.language.primary })
+  primary!: string;
+
+  @Prop({
+    required: true,
+    enum: ListenMode,
+    default: DEFAULT_AGENT_STACK.language.listen,
+  })
+  listen!: ListenMode;
+
+  @Prop({
+    required: true,
+    enum: ReplyLanguage,
+    default: DEFAULT_AGENT_STACK.language.reply,
+  })
+  reply!: ReplyLanguage;
+}
+const AgentStackLanguageSchema = SchemaFactory.createForClass(
+  AgentStackLanguageSubDoc,
+);
+
+@Schema({ _id: false })
+class AgentStackSttSubDoc implements AgentStackStt {
+  @Prop({ required: true, default: DEFAULT_AGENT_STACK.stt.model })
+  model!: string;
+
+  @Prop({ type: [String], default: [] })
+  keyterms!: string[];
+}
+const AgentStackSttSchema = SchemaFactory.createForClass(AgentStackSttSubDoc);
+
+@Schema({ _id: false })
+class AgentStackLlmSubDoc implements AgentStackLlm {
+  @Prop({ required: true, default: DEFAULT_AGENT_STACK.llm.model })
+  model!: string;
+}
+const AgentStackLlmSchema = SchemaFactory.createForClass(AgentStackLlmSubDoc);
+
+@Schema({ _id: false })
+class AgentStackTtsSubDoc implements AgentStackTts {
+  @Prop({ required: true, default: DEFAULT_AGENT_STACK.tts.voice })
+  voice!: string;
 
   @Prop({
     required: true,
     enum: AgentSpeakingSpeed,
-    default: AgentSpeakingSpeed.NORMAL,
+    default: DEFAULT_AGENT_STACK.tts.speed,
   })
-  speakingSpeed!: AgentSpeakingSpeed;
-
-  @Prop({ type: String, default: null })
-  voiceId!: string | null;
+  speed!: AgentSpeakingSpeed;
 }
-const AgentPersonaSchema = SchemaFactory.createForClass(AgentPersonaSubDoc);
+const AgentStackTtsSchema = SchemaFactory.createForClass(AgentStackTtsSubDoc);
+
+@Schema({ _id: false })
+class AgentStackTurnTakingSubDoc implements AgentStackTurnTaking {
+  @Prop({
+    required: true,
+    default: DEFAULT_AGENT_STACK.turnTaking.allowInterruptions,
+  })
+  allowInterruptions!: boolean;
+
+  @Prop({
+    required: true,
+    enum: TurnPatience,
+    default: DEFAULT_AGENT_STACK.turnTaking.patience,
+  })
+  patience!: TurnPatience;
+}
+const AgentStackTurnTakingSchema = SchemaFactory.createForClass(
+  AgentStackTurnTakingSubDoc,
+);
+
+@Schema({ _id: false })
+class AgentStackSubDoc implements AgentStackSection {
+  // `null` (custom), not the catalog default: a document written before presets
+  // existed may hold a hand-picked voice, and must not read back as a preset.
+  @Prop({ type: String, default: null })
+  preset!: string | null;
+
+  @Prop({
+    required: true,
+    enum: PipelineKind,
+    default: DEFAULT_AGENT_STACK.pipeline,
+  })
+  pipeline!: PipelineKind;
+
+  @Prop({
+    type: AgentStackLanguageSchema,
+    default: () => ({ ...DEFAULT_AGENT_STACK.language }),
+  })
+  language!: AgentStackLanguage;
+
+  @Prop({
+    type: AgentStackSttSchema,
+    default: () => ({ ...DEFAULT_AGENT_STACK.stt, keyterms: [] }),
+  })
+  stt!: AgentStackStt;
+
+  @Prop({
+    type: AgentStackLlmSchema,
+    default: () => ({ ...DEFAULT_AGENT_STACK.llm }),
+  })
+  llm!: AgentStackLlm;
+
+  @Prop({
+    type: AgentStackTtsSchema,
+    default: () => ({ ...DEFAULT_AGENT_STACK.tts }),
+  })
+  tts!: AgentStackTts;
+
+  @Prop({
+    type: AgentStackTurnTakingSchema,
+    default: () => ({ ...DEFAULT_AGENT_STACK.turnTaking }),
+  })
+  turnTaking!: AgentStackTurnTaking;
+}
+const AgentStackSchema = SchemaFactory.createForClass(AgentStackSubDoc);
 
 // ─── Top-level Profile Schema ─────────────────────────────────────────────────
 
@@ -609,11 +737,12 @@ class Profile implements IProfile {
       tone: AgentTone.BALANCED,
       verbosity: AgentVerbosity.CONCISE,
       technicalDepth: AgentTechnicalDepth.MEDIUM,
-      speakingSpeed: AgentSpeakingSpeed.NORMAL,
-      voiceId: null,
     }),
   })
   agentPersona!: AgentPersonaSection;
+
+  @Prop({ type: AgentStackSchema, default: () => defaultAgentStack() })
+  agentStack!: AgentStackSection;
 
   // Provided by { timestamps: true }
   createdAt!: Date;

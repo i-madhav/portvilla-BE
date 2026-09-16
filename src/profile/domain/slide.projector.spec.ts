@@ -1,5 +1,4 @@
 import {
-  AgentSpeakingSpeed,
   AgentTechnicalDepth,
   AgentTone,
   AgentVerbosity,
@@ -14,6 +13,7 @@ import {
   type TimelineEntry,
   type WorkEntry,
 } from './profile.interface';
+import { defaultAgentStack } from './agent-stack/catalog';
 import { MAX_SLIDES, projectSlides } from './slide.projector';
 import { SlideTemplate } from './slide';
 import { STAGE_SUMMARY_MAX_LENGTH } from './section-limits';
@@ -76,9 +76,8 @@ function aProfile(overrides: Partial<IProfileRecord> = {}): IProfileRecord {
       tone: AgentTone.BALANCED,
       verbosity: AgentVerbosity.CONCISE,
       technicalDepth: AgentTechnicalDepth.MEDIUM,
-      speakingSpeed: AgentSpeakingSpeed.NORMAL,
-      voiceId: null,
     },
+    agentStack: defaultAgentStack(),
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
     ...overrides,

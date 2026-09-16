@@ -14,6 +14,10 @@ export const DB_MODEL_REGISTRY = {
     PROFILE:{
         MODEL_TOKEN:'Profile',
         COLLECTION:'profiles'
+    },
+    ASSET:{
+        MODEL_TOKEN:'Asset',
+        COLLECTION:'assets'
     }
 } as const;
 

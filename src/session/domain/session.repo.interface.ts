@@ -67,6 +67,13 @@ export interface ISessionRepository {
     statuses: SessionStatus[],
     days: number,
   ): Promise<DailyCount[]>;
-  /** Total and count of completed-session durations for a profile. */
-  durationStatsByProfile(profileId: string): Promise<DurationStats>;
+  /**
+   * Total and count of completed-session durations for a profile, optionally
+   * restricted to sessions created at or after `since` (the minute budget
+   * passes the current UTC month start).
+   */
+  durationStatsByProfile(
+    profileId: string,
+    since?: Date,
+  ): Promise<DurationStats>;
 }

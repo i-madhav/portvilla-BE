@@ -22,6 +22,7 @@ import { ContentEntryDto } from './sections/content.dto';
 import { SocialDto } from './sections/social.dto';
 import { UpdateAiSettingsDto } from './update-ai-settings.dto';
 import { UpdateAgentPersonaDto } from './update-agent-persona.dto';
+import { UpdateAgentStackDto } from './agent-stack/update-agent-stack.dto';
 import { UpdateVisibilityDto } from './update-visibility.dto';
 
 export class UpdateProfileDto {
@@ -147,6 +148,17 @@ export class UpdateProfileDto {
   @Type(() => UpdateAgentPersonaDto)
   @IsOptional()
   agentPersona?: UpdateAgentPersonaDto;
+
+  @ApiPropertyOptional({
+    type: UpdateAgentStackDto,
+    description:
+      'Merged over the stored stack, then validated as a whole against the catalog ' +
+      '(`GET /profiles/agent-stack/catalog`). Every problem is returned at once.',
+  })
+  @ValidateNested()
+  @Type(() => UpdateAgentStackDto)
+  @IsOptional()
+  agentStack?: UpdateAgentStackDto;
 
   @ApiPropertyOptional({ type: UpdateVisibilityDto })
   @ValidateNested()

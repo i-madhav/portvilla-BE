@@ -245,7 +245,12 @@ media[]       image/video gallery
 content[]     blog | talk | paper | video | podcast | course
 social        { links[], email, phone, calendarUrl }
 aiSettings    { provider, apiKey, model, baseUrl }        ← never exposed publicly
-agentPersona  { agentName, tone, verbosity, technicalDepth, speakingSpeed, voiceId }
+agentPersona  { agentName, tone, verbosity, technicalDepth }         ← how it speaks (prompt)
+agentStack    { pipeline, language{primary,listen,reply}, stt{model,keyterms},
+                llm{model}, tts{voice,speed}, turnTaking{allowInterruptions,patience} }
+              ← what it runs on; ids validated against profile/domain/agent-stack/catalog.ts;
+                served resolved to the worker as `stack`. See
+                /Volumes/Seagate/portvilla/docs/decisions/2026-09-07-agent-stack-configuration.md
 ```
 
 Read the sections not as "resume fields" but as **presentation blocks the frontend

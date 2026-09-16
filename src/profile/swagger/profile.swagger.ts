@@ -14,6 +14,7 @@ import { UsernameAvailabilityDto } from '../dto/username-availability.dto';
 import { PublicProfileResponseDto } from '../dto/public-profile-response.dto';
 import { UnlockProfileDto } from '../dto/unlock-profile.dto';
 import { ResumeUploadResponseDto } from '../dto/resume-upload-response.dto';
+import { AgentStackCatalogDto } from '../dto/agent-stack/agent-stack-catalog.dto';
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
@@ -254,5 +255,27 @@ export const DeleteProfileEndpoint = (): MethodDecorator =>
       description: 'Profile deleted.',
     }),
     ProfileNotFound(),
+    Unauthorized(),
+  );
+
+// ─── GET /profiles/agent-stack/catalog ────────────────────────────────────────
+
+export const GetAgentStackCatalogEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({
+      summary: 'Agent stack catalog',
+      description:
+        'Everything an owner may choose for their agent — languages, listening (STT) models, ' +
+        'thinking (LLM) models, voices and the pipeline kinds — plus the defaults. Static data; ' +
+        'the dashboard renders its options from it and `PATCH /profiles/me` validates ' +
+        '`agentStack` against it. Pipeline kinds and the avatar carry an `available` flag and a ' +
+        'reason when they cannot be selected yet.',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'The catalog.',
+      type: AgentStackCatalogDto,
+    }),
     Unauthorized(),
   );

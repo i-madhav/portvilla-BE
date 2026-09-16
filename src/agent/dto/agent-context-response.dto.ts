@@ -5,15 +5,25 @@ import {
   AgentTechnicalDepth,
   AgentTone,
   AgentVerbosity,
+  ReplyLanguage,
 } from '../../profile/domain/profile.interface';
 import type { IProfileRecord } from '../../profile/domain/profile.interface';
 import { projectSlides } from '../../profile/domain/slide.projector';
 import type { Slide } from '../../profile/domain/slide';
+import { resolveAgentStack } from '../../profile/domain/agent-stack/agent-stack.rules';
+import type {
+  ResolvedAgentStack,
+  ResolvedLanguage,
+  ResolvedLlm,
+  ResolvedStt,
+  ResolvedTts,
+  ResolvedTurnTaking,
+} from '../../profile/domain/agent-stack/agent-stack.rules';
 
 /**
- * How the agent should sound. Every field here is already a rendering
- * instruction — none of it is a secret, and all of it is consumed by the worker
- * (tone/verbosity/depth shape the prompt, voiceId and speakingSpeed the TTS).
+ * How the agent should speak — the prompt-shaping fields. Every one is a
+ * rendering instruction, none is a secret. What the agent *runs on* is
+ * `AgentStackDto` below.
  */
 export class AgentPersonaDto {
   @ApiProperty({ example: 'Alex' }) agentName!: string;
@@ -21,9 +31,59 @@ export class AgentPersonaDto {
   @ApiProperty({ enum: AgentVerbosity }) verbosity!: AgentVerbosity;
   @ApiProperty({ enum: AgentTechnicalDepth })
   technicalDepth!: AgentTechnicalDepth;
-  @ApiProperty({ enum: AgentSpeakingSpeed })
-  speakingSpeed!: AgentSpeakingSpeed;
-  @ApiProperty({ nullable: true }) voiceId!: string | null;
+}
+
+class AgentStackLanguageWireDto implements ResolvedLanguage {
+  @ApiProperty({ example: 'en' }) primary!: string;
+  @ApiProperty({ example: 'English' }) label!: string;
+  @ApiProperty({ enum: ReplyLanguage }) reply!: ReplyLanguage;
+}
+
+class AgentStackSttWireDto implements ResolvedStt {
+  @ApiProperty({ example: 'deepgram/nova-3' }) model!: string;
+  @ApiProperty({
+    example: 'multi',
+    description: 'A language code, or `multi`.',
+  })
+  language!: string;
+  @ApiProperty({ type: [String] }) keyterms!: string[];
+}
+
+class AgentStackLlmWireDto implements ResolvedLlm {
+  @ApiProperty({ example: 'openai/gpt-4o-mini' }) model!: string;
+}
+
+class AgentStackTtsWireDto implements ResolvedTts {
+  @ApiProperty({ example: 'cartesia/sonic-3' }) model!: string;
+  @ApiProperty({ example: '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc' })
+  voice!: string;
+  @ApiProperty({ nullable: true, example: 'en' }) language!: string | null;
+  @ApiProperty({ enum: AgentSpeakingSpeed, nullable: true })
+  speed!: AgentSpeakingSpeed | null;
+}
+
+class AgentStackTurnTakingWireDto implements ResolvedTurnTaking {
+  @ApiProperty({ enum: ['model', 'stt'] }) detection!: 'model' | 'stt';
+  @ApiProperty() allowInterruptions!: boolean;
+  @ApiProperty({ example: 0.5 }) minEndpointingDelay!: number;
+  @ApiProperty({ example: 3.0 }) maxEndpointingDelay!: number;
+}
+
+/**
+ * The pipeline the worker builds, already resolved: concrete LiveKit Inference
+ * ids, the STT language (`multi` or a code), the TTS language (pinned, or null
+ * so the voice follows the reply), the derived keyterm list, and the
+ * turn-taking numbers for the owner's patience level. The worker applies no
+ * policy of its own — see `agent-stack.rules.ts`.
+ */
+export class AgentStackDto implements ResolvedAgentStack {
+  @ApiProperty({ type: AgentStackLanguageWireDto })
+  language!: AgentStackLanguageWireDto;
+  @ApiProperty({ type: AgentStackSttWireDto }) stt!: AgentStackSttWireDto;
+  @ApiProperty({ type: AgentStackLlmWireDto }) llm!: AgentStackLlmWireDto;
+  @ApiProperty({ type: AgentStackTtsWireDto }) tts!: AgentStackTtsWireDto;
+  @ApiProperty({ type: AgentStackTurnTakingWireDto })
+  turnTaking!: AgentStackTurnTakingWireDto;
 }
 
 /**
@@ -57,6 +117,9 @@ export class AgentContextResponseDto {
   @ApiProperty({ type: AgentPersonaDto })
   persona!: AgentPersonaDto;
 
+  @ApiProperty({ type: AgentStackDto })
+  stack!: AgentStackDto;
+
   @ApiProperty({
     type: 'array',
     items: { type: 'object' },
@@ -77,9 +140,15 @@ export class AgentContextResponseDto {
       tone: persona.tone,
       verbosity: persona.verbosity,
       technicalDepth: persona.technicalDepth,
-      speakingSpeed: persona.speakingSpeed,
-      voiceId: persona.voiceId,
     };
+
+    // Work names feed STT keyterms: they are the words a visitor is most likely
+    // to say and a transcriber most likely to mangle.
+    dto.stack = resolveAgentStack(record.agentStack, {
+      ownerName: record.identity.name,
+      agentName: persona.agentName,
+      workNames: record.works.map((w) => w.name),
+    });
 
     // The projector is itself an allowlist over the sections — see
     // `slide.projector.ts`. Nothing is filtered on the way out of it here.

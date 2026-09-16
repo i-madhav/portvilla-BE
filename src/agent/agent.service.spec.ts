@@ -1,7 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 
 import {
-  AgentSpeakingSpeed,
   AgentTechnicalDepth,
   AgentTone,
   AgentVerbosity,
@@ -14,6 +13,7 @@ import {
 } from '../profile/domain/profile.interface';
 import type { IProfileRepository } from '../profile/domain/profile-repository.interface';
 import { SlideTemplate } from '../profile/domain/slide';
+import { defaultAgentStack } from '../profile/domain/agent-stack/catalog';
 
 import { AgentService } from './agent.service';
 
@@ -74,9 +74,8 @@ function aProfile(overrides: Partial<IProfileRecord> = {}): IProfileRecord {
       tone: AgentTone.CASUAL,
       verbosity: AgentVerbosity.DETAILED,
       technicalDepth: AgentTechnicalDepth.HIGH,
-      speakingSpeed: AgentSpeakingSpeed.FAST,
-      voiceId: 'voice-9',
     },
+    agentStack: defaultAgentStack(),
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
     ...overrides,
@@ -170,8 +169,6 @@ describe('AgentService.getContext', () => {
         tone: AgentTone.CASUAL,
         verbosity: AgentVerbosity.DETAILED,
         technicalDepth: AgentTechnicalDepth.HIGH,
-        speakingSpeed: AgentSpeakingSpeed.FAST,
-        voiceId: 'voice-9',
       });
     });
 
@@ -232,6 +229,7 @@ describe('AgentService.getContext', () => {
       expect(Object.keys(context).sort()).toEqual([
         'persona',
         'slides',
+        'stack',
         'username',
       ]);
     });

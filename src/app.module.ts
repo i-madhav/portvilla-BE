@@ -14,6 +14,7 @@ import { ProfileModule } from './profile/profile.module';
 import { ParserModule } from './parser/parser.module';
 import { SessionModule } from './session/session.module';
 import { AgentModule } from './agent/agent.module';
+import { AssetModule } from './asset/asset.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AgentModule } from './agent/agent.module';
     ParserModule,
     SessionModule,
     AgentModule,
+    AssetModule
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

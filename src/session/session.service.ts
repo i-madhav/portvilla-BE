@@ -1,4 +1,6 @@
 import {
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -31,6 +33,14 @@ import type {
   RecentSessionDto,
 } from './domain/dto/sessionActivity';
 import { SessionMapper } from './domain/mapper/session.mapper';
+import {
+  MONTHLY_MINUTES_ENV,
+  isBudgetExhausted,
+  minuteBudgetExhaustedBody,
+  monthStartUtc,
+  parseMonthlyMinuteBudget,
+  type MinuteBudget,
+} from './domain/minute-budget';
 
 import { PROFILE_REPOSITORY } from '../profile/domain/profile-repository.interface';
 import type { IProfileRepository } from '../profile/domain/profile-repository.interface';
@@ -56,6 +66,8 @@ export class SessionService {
   private readonly livekitApiKey: string;
   private readonly livekitApiSecret: string;
   private readonly webhookReceiver: WebhookReceiver;
+  /** Minutes of ENDED conversation a profile may consume per UTC month; null = unlimited. */
+  private readonly monthlyMinuteBudget: MinuteBudget;
 
   constructor(
     @Inject(SESSION_REPOSITORY)
@@ -71,6 +83,9 @@ export class SessionService {
     this.webhookReceiver = new WebhookReceiver(
       this.livekitApiKey,
       this.livekitApiSecret,
+    );
+    this.monthlyMinuteBudget = parseMonthlyMinuteBudget(
+      configService.get<string>(MONTHLY_MINUTES_ENV),
     );
   }
 
@@ -280,6 +295,8 @@ export class SessionService {
       );
     }
 
+    await this.assertWithinMinuteBudget(profile.id);
+
     const roomName = `portvilla-${shortId()}`;
     const participantIdentity = `visitor-${shortId()}`;
     const agentName = AgentName.PORTFOLIO;
@@ -307,6 +324,33 @@ export class SessionService {
     });
 
     return SessionMapper.toResponseDto(session, this.livekitUrl);
+  }
+
+  /**
+   * The monthly minute budget (docs/decisions/2026-09-13-session-cost-guards.md).
+   *
+   * Counts only ENDED sessions created this UTC month, so an in-flight session
+   * is not seen until it ends — a lag the worker's 10-minute hard cap bounds.
+   * Refuses with 429 and a body carrying a stable `code`, because the global
+   * throttler also answers 429 and the frontend must tell the two apart.
+   */
+  private async assertWithinMinuteBudget(profileId: string): Promise<void> {
+    if (this.monthlyMinuteBudget === null) return;
+    const now = new Date();
+    const { totalDurationSec } =
+      await this.sessionRepository.durationStatsByProfile(
+        profileId,
+        monthStartUtc(now),
+      );
+    if (!isBudgetExhausted(totalDurationSec, this.monthlyMinuteBudget)) return;
+
+    this.logger.warn(
+      `session refused: minute budget exhausted (profile=${profileId}, usedSec=${totalDurationSec}, budgetMin=${this.monthlyMinuteBudget})`,
+    );
+    throw new HttpException(
+      minuteBudgetExhaustedBody(now),
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   private async mintToken(

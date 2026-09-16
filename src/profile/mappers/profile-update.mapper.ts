@@ -24,6 +24,7 @@ import {
  *   repository re-key them — it only recognises a section written under its
  *   bare name.
  * - **Object sections** (`identity`, `social`, `aiSettings`, `agentPersona`)
+ *   — and `agentStack`, which the service resolves separately —
  *   are written field by field under a dotted path, so a client can change one
  *   field without resending the rest.
  *
@@ -111,9 +112,10 @@ export function toProfileUpdateFields(
       'agentPersona.technicalDepth',
       agentPersona.technicalDepth,
     );
-    setIfSent(fields, 'agentPersona.speakingSpeed', agentPersona.speakingSpeed);
-    setIfSent(fields, 'agentPersona.voiceId', agentPersona.voiceId);
   }
+
+  // `agentStack` is absent on purpose: its cross-field rules need the stored
+  // section, so the service merges and validates it and writes it whole.
 
   return fields;
 }

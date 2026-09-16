@@ -164,6 +164,7 @@ export class ProfileRepository implements IProfileRepository {
       social: doc.social,
       aiSettings: doc.aiSettings,
       agentPersona: doc.agentPersona,
+      agentStack: doc.agentStack,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };

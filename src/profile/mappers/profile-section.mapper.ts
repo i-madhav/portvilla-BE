@@ -1,5 +1,4 @@
 import {
-  AgentSpeakingSpeed,
   AgentTechnicalDepth,
   AgentTone,
   AgentVerbosity,
@@ -259,7 +258,8 @@ export function defaultAgentPersona(): AgentPersonaSection {
     tone: AgentTone.BALANCED,
     verbosity: AgentVerbosity.CONCISE,
     technicalDepth: AgentTechnicalDepth.MEDIUM,
-    speakingSpeed: AgentSpeakingSpeed.NORMAL,
-    voiceId: null,
   };
 }
+
+/** Re-exported so profile creation reads every section default from one module. */
+export { defaultAgentStack } from '../domain/agent-stack/catalog';

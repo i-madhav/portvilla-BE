@@ -128,18 +128,21 @@ export class SessionRepository implements ISessionRepository {
     return rows.map((r) => ({ date: r._id, count: r.count }));
   }
 
-  async durationStatsByProfile(profileId: string): Promise<DurationStats> {
+  async durationStatsByProfile(
+    profileId: string,
+    since?: Date,
+  ): Promise<DurationStats> {
     if (!Types.ObjectId.isValid(profileId))
       return { endedCount: 0, totalDurationSec: 0 };
+    const match: Record<string, unknown> = {
+      profileId: new Types.ObjectId(profileId),
+      status: SessionStatus.ENDED,
+      endedAt: { $ne: null },
+    };
+    if (since) match.createdAt = { $gte: since };
     const rows = await this.sessionModel
       .aggregate<{ endedCount: number; totalDurationSec: number }>([
-        {
-          $match: {
-            profileId: new Types.ObjectId(profileId),
-            status: SessionStatus.ENDED,
-            endedAt: { $ne: null },
-          },
-        },
+        { $match: match },
         {
           $group: {
             _id: null,

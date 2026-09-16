@@ -44,6 +44,13 @@ export const CreateSessionEndpoint = (): MethodDecorator =>
       description: 'No profile found for the given `profileUsername`.',
     }),
     ApiResponse({
+      status: HttpStatus.TOO_MANY_REQUESTS,
+      description:
+        'Either the generic per-IP rate limit, or — when the body carries ' +
+        '`code: "MINUTE_BUDGET_EXHAUSTED"` and `resetsAt` — this profile has used its ' +
+        '`MONTHLY_MINUTES_PER_PROFILE` of ENDED conversation for the current UTC month.',
+    }),
+    ApiResponse({
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       description:
         'LiveKit token generation failed — check LIVEKIT_API_KEY / LIVEKIT_API_SECRET.',

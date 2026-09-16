@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -24,7 +25,13 @@ import { UpdateVisibilityDto } from './dto/update-visibility.dto';
 import { UsernameAvailabilityDto } from './dto/username-availability.dto';
 import { checkUsernameRule } from './domain/username.rules';
 import {
+  mergeAgentStack,
+  validateAgentStack,
+} from './domain/agent-stack/agent-stack.rules';
+import type { AgentStackSection } from './domain/profile.interface';
+import {
   defaultAgentPersona,
+  defaultAgentStack,
   toAiSettings,
   toCapabilities,
   toContent,
@@ -116,6 +123,7 @@ export class ProfileService {
       social: toSocialSection(dto.social),
       aiSettings: toAiSettings(dto.aiSettings),
       agentPersona: defaultAgentPersona(),
+      agentStack: defaultAgentStack(),
     });
 
     this.logger.log(
@@ -224,14 +232,21 @@ export class ProfileService {
   }
 
   async updateProfile(
-    profileId: string,
+    profile: IProfileRecord,
     dto: UpdateProfileDto,
   ): Promise<ProfileDataResponseDto> {
+    const profileId = profile.id;
     this.logger.debug(`updateProfile: start (profileId=${profileId})`);
 
     const fields = toProfileUpdateFields(dto);
     if (dto.visibility) {
       Object.assign(fields, await this.toVisibilityFields(dto.visibility));
+    }
+    if (dto.agentStack) {
+      fields['agentStack'] = this.toAgentStack(
+        profile.agentStack,
+        dto.agentStack,
+      );
     }
 
     // Log the section paths being written (never the values — this may include
@@ -242,6 +257,28 @@ export class ProfileService {
     const record = await this.profileRepository.update(profileId, fields);
     this.logger.log(`updateProfile: updated (profileId=${profileId})`);
     return ProfileDataResponseDto.fromRecord(record);
+  }
+
+  /**
+   * The agent stack is the one section whose fields constrain each other (a
+   * voice must speak the primary language, multilingual replies need
+   * multilingual listening), so a partial update is merged over the stored
+   * section and the *whole* result is judged. Every problem is reported at once
+   * rather than one per round-trip.
+   */
+  private toAgentStack(
+    current: AgentStackSection,
+    patch: UpdateProfileDto['agentStack'] & object,
+  ): AgentStackSection {
+    const merged = mergeAgentStack(current, patch);
+    const problems = validateAgentStack(merged);
+    if (problems.length > 0) {
+      this.logger.warn(
+        `updateProfile: agentStack rejected (${problems.length} problem(s))`,
+      );
+      throw new BadRequestException(problems);
+    }
+    return merged;
   }
 
   /**

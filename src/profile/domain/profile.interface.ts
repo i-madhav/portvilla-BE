@@ -91,6 +91,46 @@ export enum AgentSpeakingSpeed {
   FAST = 'fast',
 }
 
+// ─── Agent stack enums ────────────────────────────────────────────────────────
+// What the agent *runs on*, as opposed to how it *speaks* (AgentPersona). The
+// model ids themselves are strings validated against the catalog in
+// `agent-stack/catalog.ts`; only the closed vocabularies are enums.
+
+/**
+ * How audio moves through the agent. `stt_llm_tts` is the only value that ships:
+ * show-before-speak needs a text LLM step to call `show_slide`, which a pure
+ * realtime model does not have, and realtime/half-cascade models are plugins
+ * that need a provider key the platform does not hold. The catalog lists the
+ * other kinds as unavailable, with the reason, so the owner can see they exist.
+ */
+export enum PipelineKind {
+  STT_LLM_TTS = 'stt_llm_tts',
+  REALTIME = 'realtime',
+  HALF_CASCADE = 'half_cascade',
+}
+
+/** Which languages the agent listens for. */
+export enum ListenMode {
+  /** Only the primary language — cheaper, and sharper on that one language. */
+  PRIMARY = 'primary',
+  /** Any language the STT model can detect (`language="multi"`). */
+  MULTILINGUAL = 'multilingual',
+}
+
+/** Which language the agent answers in. */
+export enum ReplyLanguage {
+  PRIMARY = 'primary',
+  /** Mirror the visitor. Needs multilingual listening to know what they spoke. */
+  MATCH_VISITOR = 'match_visitor',
+}
+
+/** How long the agent waits after the visitor stops before it answers. */
+export enum TurnPatience {
+  QUICK = 'quick',
+  BALANCED = 'balanced',
+  PATIENT = 'patient',
+}
+
 // ─── Array Entry Keys ─────────────────────────────────────────────────────────
 
 /**
@@ -291,13 +331,65 @@ export interface AiSettingsSection {
   baseUrl: string | null;
 }
 
+/**
+ * How the agent speaks — the prompt-shaping half of its configuration. The
+ * engine half (voice, models, language, turn-taking) is `AgentStackSection`;
+ * `speakingSpeed` and `voiceId` moved there on 2026-09-07 because they are TTS
+ * parameters, not personality.
+ */
 export interface AgentPersonaSection {
   agentName: string;
   tone: AgentTone;
   verbosity: AgentVerbosity;
   technicalDepth: AgentTechnicalDepth;
-  speakingSpeed: AgentSpeakingSpeed;
-  voiceId: string | null;
+}
+
+/**
+ * What the agent runs on. Every id is a LiveKit Inference descriptor that must
+ * exist in `agent-stack/catalog.ts`; the cross-field rules (a language the
+ * chosen models can actually speak, multilingual replies needing multilingual
+ * listening) live in `agent-stack/agent-stack.rules.ts`.
+ */
+export interface AgentStackLanguage {
+  /** BCP-47 code from the catalog's language list, e.g. `en`, `hi`. */
+  primary: string;
+  listen: ListenMode;
+  reply: ReplyLanguage;
+}
+
+export interface AgentStackStt {
+  model: string;
+  /** Owner-supplied terms to boost in recognition; the resolver adds derived ones. */
+  keyterms: string[];
+}
+
+export interface AgentStackLlm {
+  model: string;
+}
+
+export interface AgentStackTts {
+  /** `"<model>:<voiceId>"` — a catalog voice, or a custom Cartesia library voice. */
+  voice: string;
+  speed: AgentSpeakingSpeed;
+}
+
+export interface AgentStackTurnTaking {
+  allowInterruptions: boolean;
+  patience: TurnPatience;
+}
+
+export interface AgentStackSection {
+  /**
+   * The catalog preset these engine fields were copied from, or `null` when the
+   * owner has customised any of them. Decision: 2026-09-13-agent-stack-presets.
+   */
+  preset: string | null;
+  pipeline: PipelineKind;
+  language: AgentStackLanguage;
+  stt: AgentStackStt;
+  llm: AgentStackLlm;
+  tts: AgentStackTts;
+  turnTaking: AgentStackTurnTaking;
 }
 
 // ─── Schema Shape ─────────────────────────────────────────────────────────────
@@ -321,6 +413,7 @@ export interface IProfile {
   social: SocialSection;
   aiSettings: AiSettingsSection;
   agentPersona: AgentPersonaSection;
+  agentStack: AgentStackSection;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -350,6 +443,7 @@ export interface IProfileRecord {
   social: SocialSection;
   aiSettings: AiSettingsSection;
   agentPersona: AgentPersonaSection;
+  agentStack: AgentStackSection;
   createdAt: Date;
   updatedAt: Date;
 }

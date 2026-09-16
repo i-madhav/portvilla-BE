@@ -6,7 +6,6 @@ import {
   AgentTone,
   AgentVerbosity,
   AgentTechnicalDepth,
-  AgentSpeakingSpeed,
 } from '../domain/profile.interface';
 import type {
   IProfileRecord,
@@ -21,7 +20,9 @@ import type {
   MediaEntry,
   ContentEntry,
   SocialSection,
+  AgentStackSection,
 } from '../domain/profile.interface';
+import { AgentStackResponseDto } from './agent-stack/agent-stack.dto';
 
 export class AgentPersonaResponseDto {
   @ApiProperty({ example: 'Alex' })
@@ -35,12 +36,6 @@ export class AgentPersonaResponseDto {
 
   @ApiProperty({ enum: AgentTechnicalDepth })
   technicalDepth!: AgentTechnicalDepth;
-
-  @ApiProperty({ enum: AgentSpeakingSpeed })
-  speakingSpeed!: AgentSpeakingSpeed;
-
-  @ApiProperty({ nullable: true })
-  voiceId!: string | null;
 }
 
 /** AI settings shape returned to the client — raw API key is never exposed. */
@@ -111,6 +106,9 @@ export class ProfileDataResponseDto {
   @ApiProperty({ type: AgentPersonaResponseDto })
   agentPersona!: AgentPersonaResponseDto;
 
+  @ApiProperty({ type: AgentStackResponseDto })
+  agentStack!: AgentStackSection;
+
   @ApiProperty()
   createdAt!: Date;
 
@@ -141,6 +139,7 @@ export class ProfileDataResponseDto {
       baseUrl: record.aiSettings.baseUrl,
     };
     dto.agentPersona = record.agentPersona;
+    dto.agentStack = record.agentStack;
     dto.createdAt = record.createdAt;
     dto.updatedAt = record.updatedAt;
     return dto;

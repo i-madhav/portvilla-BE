@@ -37,6 +37,7 @@ import {
 import { PublicProfileResponseDto } from './dto/public-profile-response.dto';
 import { UnlockProfileDto } from './dto/unlock-profile.dto';
 import { ResumeUploadResponseDto } from './dto/resume-upload-response.dto';
+import { AgentStackCatalogDto } from './dto/agent-stack/agent-stack-catalog.dto';
 import {
   resumeUploadConfig,
   profileImageUploadConfig,
@@ -52,6 +53,7 @@ import {
   UploadProfileImageEndpoint,
   DeleteProfileEndpoint,
   UpdateProfileEndpoint,
+  GetAgentStackCatalogEndpoint,
 } from './swagger/profile.swagger';
 
 // Decorator to extract the pre-fetched profile from the guard
@@ -97,6 +99,18 @@ export class ProfileController {
 
   // Public — the visitor-facing portfolio. `public/` prefix keeps `:username`
   // from colliding with the literal `me` / `username-available` routes.
+  /**
+   * Static: what the owner may pick for the agent's voice, models, language and
+   * turn-taking. Literal path, declared before any `:username` route.
+   */
+  @Get('profiles/agent-stack/catalog')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @GetAgentStackCatalogEndpoint()
+  getAgentStackCatalog(): AgentStackCatalogDto {
+    return AgentStackCatalogDto.build();
+  }
+
   @Get('profiles/public/:username')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -137,7 +151,7 @@ export class ProfileController {
     @ProfileFromGuard() profile: IProfileRecord,
     @Body() dto: UpdateProfileDto,
   ): Promise<ProfileDataResponseDto> {
-    return this.profileService.updateProfile(profile.id, dto);
+    return this.profileService.updateProfile(profile, dto);
   }
 
   @Post('profiles/me/resume')
