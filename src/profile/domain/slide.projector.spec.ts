@@ -2,19 +2,26 @@ import {
   AgentTechnicalDepth,
   AgentTone,
   AgentVerbosity,
+  ContentType,
   EntityType,
   LlmProvider,
   ProfileVisibility,
+  TestimonialRelationship,
   TimelineCategory,
   WorkType,
   type CapabilityEntry,
+  type ContentEntry,
   type IProfileRecord,
+  type MetricEntry,
+  type OfferingEntry,
   type StageEntry,
+  type TeamMemberEntry,
+  type TestimonialEntry,
   type TimelineEntry,
   type WorkEntry,
 } from './profile.interface';
 import { defaultAgentStack } from './agent-stack/catalog';
-import { MAX_SLIDES, projectSlides } from './slide.projector';
+import { MAX_SLIDES, projectSlides, sectionOrder } from './slide.projector';
 import { SlideTemplate } from './slide';
 import { STAGE_SUMMARY_MAX_LENGTH } from './section-limits';
 
@@ -65,6 +72,7 @@ function aProfile(overrides: Partial<IProfileRecord> = {}): IProfileRecord {
       phone: 'SECRET-PHONE-555',
       calendarUrl: null,
     },
+    brief: { text: 'SECRET-BRIEF-TEXT' },
     aiSettings: {
       provider: LlmProvider.OPENAI,
       apiKey: 'SECRET-API-KEY',
@@ -101,7 +109,7 @@ function aWork(overrides: Partial<WorkEntry> = {}): WorkEntry {
     highlights: [],
     featured: false,
     codeSnippets: [],
-    date: null,
+    date: '2024-01',
     stages: [],
     ...overrides,
   };
@@ -152,8 +160,118 @@ function aTimelineEntry(overrides: Partial<TimelineEntry> = {}): TimelineEntry {
   };
 }
 
+function anOffering(overrides: Partial<OfferingEntry> = {}): OfferingEntry {
+  return {
+    key: 'oooooooo',
+    name: 'Starter',
+    description: 'For one person getting going.',
+    icon: null,
+    price: '$0',
+    features: ['One profile'],
+    highlighted: false,
+    tags: [],
+    cta: null,
+    ...overrides,
+  };
+}
+
+function aMetric(overrides: Partial<MetricEntry> = {}): MetricEntry {
+  return {
+    key: 'mmmmmmmm',
+    value: '99.9%',
+    label: 'Uptime',
+    description: null,
+    icon: null,
+    category: null,
+    ...overrides,
+  };
+}
+
+function aTestimonial(
+  overrides: Partial<TestimonialEntry> = {},
+): TestimonialEntry {
+  return {
+    key: 'rrrrrrrr',
+    text: 'It does exactly what it says.',
+    author: 'Priya Nair',
+    role: null,
+    organization: null,
+    avatarUrl: null,
+    relationship: TestimonialRelationship.CLIENT,
+    featured: false,
+    ...overrides,
+  };
+}
+
+function aTeamMember(
+  overrides: Partial<TeamMemberEntry> = {},
+): TeamMemberEntry {
+  return {
+    key: 'pppppppp',
+    name: 'Sam Reyes',
+    role: 'Engineer',
+    bio: null,
+    avatarUrl: null,
+    links: [],
+    ...overrides,
+  };
+}
+
+function aContentItem(overrides: Partial<ContentEntry> = {}): ContentEntry {
+  return {
+    key: 'nnnnnnnn',
+    type: ContentType.BLOG,
+    title: 'Deriving slides from a profile',
+    url: 'https://example.com/post',
+    description: null,
+    thumbnailUrl: null,
+    date: '2026-03',
+    tags: [],
+    featured: false,
+    ...overrides,
+  };
+}
+
+/**
+ * A profile with **every** section populated — the fixture the order and
+ * allowlist tests need, since both are about what the whole catalog does.
+ * `media` is populated too, and deliberately: it must still produce no slide.
+ */
+function aFullProfile(entityType = EntityType.INDIVIDUAL): IProfileRecord {
+  const record = aProfile({
+    works: [aWork({ key: 'work0001', stages: [aStage({ key: 'stage001' })] })],
+    capabilities: [aCapability()],
+    timeline: [aTimelineEntry()],
+    offerings: [anOffering()],
+    metrics: [aMetric()],
+    testimonials: [aTestimonial()],
+    team: [aTeamMember()],
+    content: [aContentItem()],
+    media: [
+      {
+        key: 'dddddddd',
+        url: 'https://example.com/shot.png',
+        caption: null,
+        type: 'image',
+        category: null,
+      },
+    ],
+  });
+  record.identity.entityType = entityType;
+  record.social.links = [
+    { platform: 'github', url: 'https://gh', label: null },
+  ];
+  return record;
+}
+
 const idsOf = (record: IProfileRecord) =>
   projectSlides(record).map((s) => s.id);
+
+const slideById = (record: IProfileRecord, id: string) => {
+  const slide = projectSlides(record).find((s) => s.id === id);
+  if (!slide) throw new Error(`expected a ${id} slide`);
+  return slide;
+};
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -289,6 +407,376 @@ describe('projectSlides', () => {
     });
   });
 
+  describe('the offerings slide', () => {
+    it('carries every offering field, including the call to action', () => {
+      const record = aProfile({
+        offerings: [
+          anOffering({
+            cta: { label: 'Start free', url: 'https://example.com/signup' },
+            tags: ['popular'],
+          }),
+        ],
+      });
+
+      const slide = slideById(record, 'offerings');
+      expect(slide.template).toBe(SlideTemplate.OFFERINGS);
+      expect(slide.title).toBe('Offerings');
+      if (slide.template !== SlideTemplate.OFFERINGS) throw new Error('x');
+      expect(slide.payload.items[0]).toEqual({
+        key: 'oooooooo',
+        name: 'Starter',
+        description: 'For one person getting going.',
+        icon: null,
+        price: '$0',
+        features: ['One profile'],
+        highlighted: false,
+        tags: ['popular'],
+        cta: { label: 'Start free', url: 'https://example.com/signup' },
+      });
+    });
+
+    it('counts them and names a few aloud', () => {
+      const record = aProfile({
+        offerings: [
+          anOffering({ key: 'off00001', name: 'Starter' }),
+          anOffering({ key: 'off00002', name: 'Team' }),
+          anOffering({ key: 'off00003', name: 'Enterprise' }),
+        ],
+      });
+
+      expect(slideById(record, 'offerings').talkTrack).toEqual({
+        summary: '3 offerings, including Starter, Team and Enterprise.',
+        detail: null,
+      });
+    });
+  });
+
+  describe('the metrics slide', () => {
+    it('carries the value as written, suffix and all', () => {
+      const record = aProfile({
+        metrics: [aMetric({ value: '10M+', label: 'Requests a day' })],
+      });
+
+      const slide = slideById(record, 'metrics');
+      expect(slide.template).toBe(SlideTemplate.METRICS);
+      expect(slide.title).toBe('By the numbers');
+      if (slide.template !== SlideTemplate.METRICS) throw new Error('x');
+      expect(slide.payload.items[0]).toEqual({
+        key: 'mmmmmmmm',
+        value: '10M+',
+        label: 'Requests a day',
+        description: null,
+        icon: null,
+        category: null,
+      });
+      expect(slide.talkTrack.summary).toBe(
+        '1 number, including Requests a day.',
+      );
+    });
+  });
+
+  describe('the testimonials slide', () => {
+    it('keeps the quote, its author and their picture', () => {
+      const record = aProfile({
+        testimonials: [
+          aTestimonial({
+            role: 'CTO',
+            organization: 'Northwind',
+            avatarUrl: 'https://example.com/priya.jpg',
+            featured: true,
+          }),
+        ],
+      });
+
+      const slide = slideById(record, 'testimonials');
+      expect(slide.template).toBe(SlideTemplate.TESTIMONIALS);
+      expect(slide.title).toBe('What people say');
+      if (slide.template !== SlideTemplate.TESTIMONIALS) throw new Error('x');
+      expect(slide.payload.items[0]).toEqual({
+        key: 'rrrrrrrr',
+        text: 'It does exactly what it says.',
+        author: 'Priya Nair',
+        role: 'CTO',
+        organization: 'Northwind',
+        avatarUrl: 'https://example.com/priya.jpg',
+        relationship: TestimonialRelationship.CLIENT,
+        featured: true,
+      });
+    });
+
+    it('attributes them rather than listing them', () => {
+      const record = aProfile({
+        testimonials: [
+          aTestimonial({ key: 'tst00001', author: 'Priya Nair' }),
+          aTestimonial({ key: 'tst00002', author: 'Sam Reyes' }),
+        ],
+      });
+
+      expect(slideById(record, 'testimonials').talkTrack.summary).toBe(
+        '2 testimonials, from Priya Nair and Sam Reyes.',
+      );
+    });
+
+    it('leaves the authored order alone, featured or not', () => {
+      const record = aProfile({
+        testimonials: [
+          aTestimonial({ key: 'tst00001', author: 'First' }),
+          aTestimonial({ key: 'tst00002', author: 'Second', featured: true }),
+        ],
+      });
+
+      const slide = slideById(record, 'testimonials');
+      if (slide.template !== SlideTemplate.TESTIMONIALS) throw new Error('x');
+      expect(slide.payload.items.map((t) => t.author)).toEqual([
+        'First',
+        'Second',
+      ]);
+    });
+  });
+
+  describe('the team slide', () => {
+    it("carries each member's public links", () => {
+      const record = aProfile({
+        team: [
+          aTeamMember({
+            bio: 'Builds the projector.',
+            links: [{ platform: 'github', url: 'https://gh/sam' }],
+          }),
+        ],
+      });
+
+      const slide = slideById(record, 'team');
+      expect(slide.template).toBe(SlideTemplate.TEAM);
+      expect(slide.title).toBe('The team');
+      if (slide.template !== SlideTemplate.TEAM) throw new Error('x');
+      expect(slide.payload.items[0]).toEqual({
+        key: 'pppppppp',
+        name: 'Sam Reyes',
+        role: 'Engineer',
+        bio: 'Builds the projector.',
+        avatarUrl: null,
+        links: [{ platform: 'github', url: 'https://gh/sam' }],
+      });
+      expect(slide.talkTrack.summary).toBe('1 person, including Sam Reyes.');
+    });
+  });
+
+  describe('the content slide', () => {
+    it('carries the piece, its type and its date', () => {
+      const record = aProfile({
+        content: [aContentItem({ type: ContentType.TALK, tags: ['voice'] })],
+      });
+
+      const slide = slideById(record, 'content');
+      expect(slide.template).toBe(SlideTemplate.CONTENT);
+      expect(slide.title).toBe('Writing and talks');
+      if (slide.template !== SlideTemplate.CONTENT) throw new Error('x');
+      expect(slide.payload.items[0]).toEqual({
+        key: 'nnnnnnnn',
+        type: ContentType.TALK,
+        title: 'Deriving slides from a profile',
+        url: 'https://example.com/post',
+        description: null,
+        thumbnailUrl: null,
+        date: '2026-03',
+        tags: ['voice'],
+        featured: false,
+      });
+      expect(slide.talkTrack.summary).toBe(
+        '1 piece, including Deriving slides from a profile.',
+      );
+    });
+  });
+
+  describe('catalog order', () => {
+    it('opens on identity and closes on contact, whatever the entity', () => {
+      for (const entityType of Object.values(EntityType)) {
+        const ids = idsOf(aFullProfile(entityType));
+        expect(ids[0]).toBe('identity');
+        expect(ids[ids.length - 1]).toBe('contact');
+      }
+    });
+
+    it('tells an individual story: what they built, then what they know', () => {
+      expect(idsOf(aFullProfile(EntityType.INDIVIDUAL))).toEqual([
+        'identity',
+        'work:work0001',
+        'work:work0001:stage:stage001',
+        'capabilities',
+        'timeline',
+        'testimonials',
+        'content',
+        'metrics',
+        'offerings',
+        'team',
+        'contact',
+      ]);
+    });
+
+    it('leads a company with what it sells', () => {
+      expect(idsOf(aFullProfile(EntityType.COMPANY))).toEqual([
+        'identity',
+        'offerings',
+        'work:work0001',
+        'work:work0001:stage:stage001',
+        'metrics',
+        'testimonials',
+        'team',
+        'capabilities',
+        'timeline',
+        'content',
+        'contact',
+      ]);
+    });
+
+    it('tells an organization the same story as a company', () => {
+      expect(idsOf(aFullProfile(EntityType.ORGANIZATION))).toEqual(
+        idsOf(aFullProfile(EntityType.COMPANY)),
+      );
+    });
+
+    it('leads a product with what it does', () => {
+      expect(idsOf(aFullProfile(EntityType.PRODUCT))).toEqual([
+        'identity',
+        'capabilities',
+        'work:work0001',
+        'work:work0001:stage:stage001',
+        'metrics',
+        'offerings',
+        'testimonials',
+        'timeline',
+        'team',
+        'content',
+        'contact',
+      ]);
+    });
+
+    it('orders every section exactly once for every entity type', () => {
+      const sections = [...sectionOrder(EntityType.INDIVIDUAL)].sort();
+
+      for (const entityType of Object.values(EntityType)) {
+        const ordered = sectionOrder(entityType);
+        expect(new Set(ordered).size).toBe(ordered.length);
+        expect([...ordered].sort()).toEqual(sections);
+      }
+    });
+
+    it('keeps a stage with its work wherever works fall in the order', () => {
+      const ids = idsOf(aFullProfile(EntityType.COMPANY));
+      expect(ids.indexOf('work:work0001:stage:stage001')).toBe(
+        ids.indexOf('work:work0001') + 1,
+      );
+    });
+  });
+
+  describe('a full profile', () => {
+    it('projects one slide for every section that has a template', () => {
+      // Eleven sections, ten of them projectable: identity, works (+1 stage),
+      // capabilities, timeline, offerings, metrics, testimonials, team,
+      // content, contact.
+      expect(idsOf(aFullProfile())).toHaveLength(11);
+    });
+
+    it('projects no slide for media, which has no template yet', () => {
+      const ids = idsOf(aFullProfile());
+      expect(ids).not.toContain('media');
+      expect(JSON.stringify(projectSlides(aFullProfile()))).not.toContain(
+        'shot.png',
+      );
+    });
+
+    // A payload is a closed interface, so it has no index signature to read
+    // keys through; `unknown` is the one honest way in and out of that.
+    const entryKeys = (payload: unknown): string[] => {
+      const obj = payload as Record<string, unknown>;
+      const items = obj.items;
+      return Array.isArray(items)
+        ? Object.keys(items[0] as object).sort()
+        : Object.keys(obj).sort();
+    };
+
+    it('allowlists every payload field by field', () => {
+      const keysByTemplate: Partial<Record<SlideTemplate, string[]>> = {};
+      for (const slide of projectSlides(aFullProfile())) {
+        keysByTemplate[slide.template] = entryKeys(slide.payload);
+      }
+
+      expect(keysByTemplate[SlideTemplate.OFFERINGS]).toEqual([
+        'cta',
+        'description',
+        'features',
+        'highlighted',
+        'icon',
+        'key',
+        'name',
+        'price',
+        'tags',
+      ]);
+      expect(keysByTemplate[SlideTemplate.METRICS]).toEqual([
+        'category',
+        'description',
+        'icon',
+        'key',
+        'label',
+        'value',
+      ]);
+      expect(keysByTemplate[SlideTemplate.TESTIMONIALS]).toEqual([
+        'author',
+        'avatarUrl',
+        'featured',
+        'key',
+        'organization',
+        'relationship',
+        'role',
+        'text',
+      ]);
+      expect(keysByTemplate[SlideTemplate.TEAM]).toEqual([
+        'avatarUrl',
+        'bio',
+        'key',
+        'links',
+        'name',
+        'role',
+      ]);
+      expect(keysByTemplate[SlideTemplate.CONTENT]).toEqual([
+        'date',
+        'description',
+        'featured',
+        'key',
+        'tags',
+        'thumbnailUrl',
+        'title',
+        'type',
+        'url',
+      ]);
+    });
+
+    it('still leaks no secret once every section is populated', () => {
+      const serialized = JSON.stringify(projectSlides(aFullProfile()));
+
+      for (const secret of [
+        'SECRET-API-KEY',
+        'SECRET-RESUME-TEXT',
+        'SECRET-RESUME.pdf',
+        'SECRET-EMAIL',
+        'SECRET-PHONE',
+        'SECRET-BRIEF-TEXT',
+      ]) {
+        expect(serialized).not.toContain(secret);
+      }
+    });
+
+    it('hands back item arrays that do not alias the record', () => {
+      const record = aFullProfile();
+      const slide = slideById(record, 'offerings');
+      if (slide.template !== SlideTemplate.OFFERINGS) throw new Error('x');
+
+      slide.payload.items[0].features.push('mutated');
+
+      expect(record.offerings[0].features).toEqual(['One profile']);
+    });
+  });
+
   describe('ordering', () => {
     it('runs identity, then works, then capabilities, timeline and contact', () => {
       const record = aProfile({
@@ -347,9 +835,20 @@ describe('projectSlides', () => {
 
   describe('sections with nothing in them', () => {
     it('produce no slide rather than an empty one', () => {
-      expect(idsOf(aProfile())).not.toContain('capabilities');
-      expect(idsOf(aProfile())).not.toContain('timeline');
-      expect(idsOf(aProfile())).not.toContain('contact');
+      const ids = idsOf(aProfile());
+
+      for (const section of [
+        'capabilities',
+        'timeline',
+        'offerings',
+        'metrics',
+        'testimonials',
+        'team',
+        'content',
+        'contact',
+      ]) {
+        expect(ids).not.toContain(section);
+      }
     });
 
     it('still yields contact when only a calendar link exists', () => {
@@ -422,6 +921,31 @@ describe('projectSlides', () => {
     it('truncates identically on every call', () => {
       expect(projectSlides(oversized)).toEqual(projectSlides(oversized));
     });
+
+    it('leaves room for all eight single-slide sections, not just two', () => {
+      // The reason MAX_FIXED_SLIDES is 9 and not 4: with every section filled,
+      // the works budget has to stop short by enough that identity and the
+      // eight section slides still fit under MAX_SLIDES.
+      const full = aFullProfile();
+      full.works = oversized.works;
+
+      const ids = idsOf(full);
+
+      expect(ids.length).toBeLessThanOrEqual(MAX_SLIDES);
+      for (const section of [
+        'identity',
+        'capabilities',
+        'timeline',
+        'offerings',
+        'metrics',
+        'testimonials',
+        'team',
+        'content',
+        'contact',
+      ]) {
+        expect(ids).toContain(section);
+      }
+    });
   });
 
   describe('the allowlist', () => {
@@ -441,6 +965,9 @@ describe('projectSlides', () => {
         'SECRET-RESUME.pdf',
         'SECRET-EMAIL',
         'SECRET-PHONE',
+        // The owner's source description. Slides are derived from the sections
+        // it produced, never from the brief itself.
+        'SECRET-BRIEF-TEXT',
       ]) {
         expect(serialized).not.toContain(secret);
       }

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { SessionStatus, SessionType } from '../session.interface';
+import { SessionStatus, SessionType } from '../domain/session.interface';
 
 export class ActivityTotalsDto {
   @ApiProperty({

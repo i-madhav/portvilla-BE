@@ -8,6 +8,7 @@ import {
 } from '@nestjs/swagger';
 
 import { ProfileDataResponseDto } from '../dto/profile-data-response.dto';
+import { ProfilePreviewResponseDto } from '../dto/profile-preview-response.dto';
 import { CreateProfileDto } from '../dto/create-profile.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { UsernameAvailabilityDto } from '../dto/username-availability.dto';
@@ -15,6 +16,12 @@ import { PublicProfileResponseDto } from '../dto/public-profile-response.dto';
 import { UnlockProfileDto } from '../dto/unlock-profile.dto';
 import { ResumeUploadResponseDto } from '../dto/resume-upload-response.dto';
 import { AgentStackCatalogDto } from '../dto/agent-stack/agent-stack-catalog.dto';
+import { ProfileDraftResponseDto } from '../dto/profile-draft-response.dto';
+import {
+  GenerateProfileDto,
+  MIN_DESCRIPTION_LENGTH,
+} from '../dto/generate-profile.dto';
+import { MAX_BRIEF_LENGTH } from '../domain/section-limits';
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
@@ -152,6 +159,28 @@ export const GetProfileDataEndpoint = (): MethodDecorator =>
     Unauthorized(),
   );
 
+// ─── GET /profiles/me/preview ────────────────────────────────────────────────
+
+export const GetProfilePreviewEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({
+      summary: "Preview the agent's slide catalog",
+      description:
+        'Returns exactly what the voice agent would narrate for this profile ' +
+        'right now — same persona fields and the same derived slide catalog ' +
+        'served to `GET /agent/context/:username`. A section with nothing to ' +
+        'show produces no slide, same as it would for a visitor.',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Preview generated successfully.',
+      type: ProfilePreviewResponseDto,
+    }),
+    ProfileNotFound(),
+    Unauthorized(),
+  );
+
 // ─── PATCH /profiles/me ──────────────────────────────────────────────────────
 
 export const UpdateProfileEndpoint = (): MethodDecorator =>
@@ -278,4 +307,47 @@ export const GetAgentStackCatalogEndpoint = (): MethodDecorator =>
       type: AgentStackCatalogDto,
     }),
     Unauthorized(),
+  );
+
+// ─── POST /profiles/me/generate ───────────────────────────────────────────────
+
+export const GenerateProfileEndpoint = (): MethodDecorator =>
+  applyDecorators(
+    Bearer(),
+    ApiOperation({
+      summary: 'Draft a whole profile from one description',
+      description:
+        'Reads the description once to build a fact sheet, then writes each ' +
+        'knowledge section from it in parallel, then validates and grounds the ' +
+        'result against the description. **Writes nothing.** The response is a ' +
+        '`PATCH /profiles/me` body the owner accepts — whole or section by ' +
+        'section — plus the slide catalog it would produce, so what they review ' +
+        'is what visitors would get.\n\n' +
+        'A section with no material in the description comes back `empty`, which ' +
+        'is a correct answer. A section whose call failed comes back `failed` ' +
+        'with a warning; the request still succeeds. Entity type and name are ' +
+        'taken from the profile, not the body.',
+    }),
+    ApiBody({ type: GenerateProfileDto }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'A draft, its preview, and what was dropped.',
+      type: ProfileDraftResponseDto,
+    }),
+    ApiResponse({
+      status: HttpStatus.BAD_REQUEST,
+      description: `Description shorter than ${MIN_DESCRIPTION_LENGTH} or longer than ${MAX_BRIEF_LENGTH} characters.`,
+    }),
+    ProfileNotFound(),
+    Unauthorized(),
+    ApiResponse({
+      status: HttpStatus.TOO_MANY_REQUESTS,
+      description: 'Five generations per ten minutes.',
+    }),
+    ApiResponse({
+      status: HttpStatus.BAD_GATEWAY,
+      description:
+        'The model could not be reached, or could not read the description ' +
+        'well enough to draft from it. Nothing was written; retry or type it by hand.',
+    }),
   );

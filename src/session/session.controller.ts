@@ -21,11 +21,8 @@ import {
 } from '../profile/guards/profile-owner.guard';
 
 import { SessionService } from './session.service';
-import {
-  CreateSessionDto,
-  SessionResponseDto,
-} from './domain/dto/createSession';
-import type { SessionActivityDto } from './domain/dto/sessionActivity';
+import { CreateSessionDto, SessionResponseDto } from './dto/create-session.dto';
+import type { SessionActivityDto } from './dto/session-activity.dto';
 import {
   CreateSessionEndpoint,
   SessionWebhookEndpoint,

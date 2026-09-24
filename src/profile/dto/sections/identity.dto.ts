@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+} from 'class-validator';
 
 import { EntityType } from '../../domain/profile.interface';
 
@@ -18,22 +24,35 @@ export class IdentityDto {
   @IsOptional()
   tagline?: string | null;
 
-  @ApiPropertyOptional({ example: 'Passionate engineer with 8 years of experience building distributed systems.', nullable: true })
+  @ApiPropertyOptional({
+    example:
+      'Passionate engineer with 8 years of experience building distributed systems.',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   bio?: string | null;
 
-  @ApiPropertyOptional({ example: 'I love building tools that make developers more productive...', nullable: true })
+  @ApiPropertyOptional({
+    example: 'I love building tools that make developers more productive...',
+    nullable: true,
+  })
   @IsString()
   @IsOptional()
   about?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg', nullable: true })
+  @ApiPropertyOptional({
+    example: 'https://example.com/avatar.jpg',
+    nullable: true,
+  })
   @IsUrl()
   @IsOptional()
   primaryImage?: string | null;
 
-  @ApiPropertyOptional({ example: 'https://example.com/cover.jpg', nullable: true })
+  @ApiPropertyOptional({
+    example: 'https://example.com/cover.jpg',
+    nullable: true,
+  })
   @IsUrl()
   @IsOptional()
   coverImage?: string | null;

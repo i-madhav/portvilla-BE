@@ -57,8 +57,7 @@ export const RegisterEndpoint = (): MethodDecorator =>
     ApiBody({ type: RegisterDto }),
     ApiResponse({
       status: HttpStatus.CREATED,
-      description:
-        'Account created successfully. Verification OTP dispatched.',
+      description: 'Account created successfully. Verification OTP dispatched.',
       type: MessageResponseDto,
     }),
     ApiResponse({
@@ -78,7 +77,7 @@ export const VerifyEmailEndpoint = (): MethodDecorator =>
     ApiOperation({
       summary: 'Verify email address',
       description:
-        'Validates the 6-digit OTP sent to the user\'s email address. ' +
+        "Validates the 6-digit OTP sent to the user's email address. " +
         'On success the account is marked as verified and can be used to log in. ' +
         'OTPs expire after **15 minutes**.',
     }),

@@ -63,6 +63,7 @@ function aProfile(overrides: Partial<IProfileRecord> = {}): IProfileRecord {
       phone: 'SECRET-PHONE-555',
       calendarUrl: null,
     },
+    brief: { text: 'SECRET-BRIEF-TEXT' },
     aiSettings: {
       provider: LlmProvider.OPENAI,
       apiKey: 'SECRET-API-KEY',
@@ -99,7 +100,7 @@ function aWork(overrides: Partial<WorkEntry> = {}): WorkEntry {
     highlights: [],
     featured: false,
     codeSnippets: [],
-    date: null,
+    date: '2024-01',
     stages: [],
     ...overrides,
   };
@@ -215,6 +216,9 @@ describe('AgentService.getContext', () => {
       ['the parsed resume text', 'SECRET-RESUME-TEXT'],
       ['the owner email', 'SECRET-EMAIL'],
       ['the owner phone', 'SECRET-PHONE'],
+      // The brief is the owner's raw working notes, not portfolio prose: the
+      // agent narrates what the projector derived from it, never the source.
+      ['the source brief', 'SECRET-BRIEF-TEXT'],
     ])('never serves %s', async (_label, secret) => {
       const context = await serviceFor(
         aProfile({ works: [aWork()] }),

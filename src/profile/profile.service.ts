@@ -17,6 +17,7 @@ import {
 } from './domain/profile.interface';
 
 import { ProfileDataResponseDto } from './dto/profile-data-response.dto';
+import { ProfilePreviewResponseDto } from './dto/profile-preview-response.dto';
 import { PublicProfileResponseDto } from './dto/public-profile-response.dto';
 import { ResumeUploadResponseDto } from './dto/resume-upload-response.dto';
 import { CreateProfileDto } from './dto/create-profile.dto';
@@ -229,6 +230,21 @@ export class ProfileService {
       throw new NotFoundException('Profile not found.');
     }
     return ProfileDataResponseDto.fromRecord(record);
+  }
+
+  /**
+   * The owner-facing preview: exactly the slide catalog the voice agent would
+   * narrate for this profile, built the same way `GET /agent/context` builds
+   * it for the worker.
+   */
+  async getPreview(userId: string): Promise<ProfilePreviewResponseDto> {
+    this.logger.debug(`getPreview: lookup (userId=${userId})`);
+    const record = await this.profileRepository.findByUserId(userId);
+    if (!record) {
+      this.logger.warn(`getPreview: profile not found (userId=${userId})`);
+      throw new NotFoundException('Profile not found.');
+    }
+    return ProfilePreviewResponseDto.fromRecord(record);
   }
 
   async updateProfile(

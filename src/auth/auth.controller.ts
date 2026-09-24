@@ -45,7 +45,10 @@ export class AuthController {
   @RegisterEndpoint()
   async register(@Body() dto: RegisterDto): Promise<MessageResponseDto> {
     await this.authService.register(dto);
-    return { message: 'Account created. Please check your email for the verification code.' };
+    return {
+      message:
+        'Account created. Please check your email for the verification code.',
+    };
   }
 
   // ─── Email Verification ────────────────────────────────────────────────────

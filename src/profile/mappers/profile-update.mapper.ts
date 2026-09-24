@@ -23,7 +23,7 @@ import {
  *   `key`, not via array position. Writing them whole is also what lets the
  *   repository re-key them — it only recognises a section written under its
  *   bare name.
- * - **Object sections** (`identity`, `social`, `aiSettings`, `agentPersona`)
+ * - **Object sections** (`identity`, `social`, `brief`, `aiSettings`, `agentPersona`)
  *   — and `agentStack`, which the service resolves separately —
  *   are written field by field under a dotted path, so a client can change one
  *   field without resending the rest.
@@ -56,6 +56,7 @@ export function toProfileUpdateFields(
     media,
     content,
     social,
+    brief,
     aiSettings,
     agentPersona,
   } = dto;
@@ -92,6 +93,10 @@ export function toProfileUpdateFields(
     setIfSent(fields, 'social.email', social.email);
     setIfSent(fields, 'social.phone', social.phone);
     setIfSent(fields, 'social.calendarUrl', social.calendarUrl);
+  }
+
+  if (brief) {
+    setIfSent(fields, 'brief.text', brief.text);
   }
 
   if (aiSettings) {

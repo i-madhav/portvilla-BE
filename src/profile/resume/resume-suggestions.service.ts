@@ -2,8 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { LlmService } from '../../llm/llm.service';
-import { LlmProvider } from '../domain/profile.interface';
-import type { AiSettingsSection } from '../domain/profile.interface';
+import { platformLlmSettings } from '../../llm/platform-llm.config';
 import { ResumeSuggestionsDto } from '../dto/resume-upload-response.dto';
 
 /**
@@ -11,10 +10,11 @@ import { ResumeSuggestionsDto } from '../dto/resume-upload-response.dto';
  *
  * Kept apart from `ProfileService` for two reasons. It is the only thing in the
  * profile module that needs `LlmService` and `ConfigService`, and it runs on
- * **platform** credentials (`RESUME_LLM_*` from env) rather than the user's own
- * `aiSettings` key — a new user in onboarding has no key configured, and their
- * key is not the platform's to spend without one. Conflating the two key sets is
- * the mistake this separation is meant to prevent.
+ * **platform** credentials (`PLATFORM_LLM_*` from env, read by
+ * `platformLlmSettings`) rather than the user's own `aiSettings` key — a new
+ * user in onboarding has no key configured, and their key is not the platform's
+ * to spend without one. Conflating the two key sets is the mistake this
+ * separation is meant to prevent.
  *
  * Every failure path returns null, so the feature degrades to "type it yourself"
  * instead of failing the upload it hangs off.
@@ -52,10 +52,10 @@ export class ResumeSuggestionsService {
       return null;
     }
 
-    const settings = this.platformLlmSettings();
+    const settings = platformLlmSettings(this.configService);
     if (!settings) {
       this.logger.debug(
-        'draftFrom: RESUME_LLM_API_KEY unset — skipping extraction',
+        'draftFrom: PLATFORM_LLM_API_KEY unset — skipping extraction',
       );
       return null;
     }
@@ -65,25 +65,5 @@ export class ResumeSuggestionsService {
       settings,
     );
     return extraction ? ResumeSuggestionsDto.fromExtraction(extraction) : null;
-  }
-
-  /** Platform extraction credentials from env, or null when unconfigured. */
-  private platformLlmSettings(): AiSettingsSection | null {
-    const apiKey = this.configService.get<string>('RESUME_LLM_API_KEY');
-    if (!apiKey) return null;
-
-    const providerRaw = this.configService.get<string>('RESUME_LLM_PROVIDER');
-    const provider = Object.values(LlmProvider).includes(
-      providerRaw as LlmProvider,
-    )
-      ? (providerRaw as LlmProvider)
-      : LlmProvider.OPENAI;
-
-    return {
-      provider,
-      apiKey,
-      model: this.configService.get<string>('RESUME_LLM_MODEL') ?? null,
-      baseUrl: this.configService.get<string>('RESUME_LLM_BASE_URL') ?? null,
-    };
   }
 }

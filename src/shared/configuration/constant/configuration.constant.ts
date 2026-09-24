@@ -1,4 +1,4 @@
 export enum Configuration {
-    LIVEKIT = 'livekit',
-    GITHUB = 'github'
+  LIVEKIT = 'livekit',
+  GITHUB = 'github',
 }

@@ -18,7 +18,8 @@ export class RepoInsightsDto implements RepoInsights {
   @ApiProperty({
     example: ['NestJS', 'Prisma', 'Zod'],
     type: [String],
-    description: 'Frameworks/libraries detected from package.json or requirements.txt',
+    description:
+      'Frameworks/libraries detected from package.json or requirements.txt',
   })
   frameworks!: string[];
 

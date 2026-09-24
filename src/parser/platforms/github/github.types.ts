@@ -1,36 +1,36 @@
 export interface GithubUserRaw {
-  login:        string;
-  name:         string | null;
-  bio:          string | null;
-  company:      string | null;
-  location:     string | null;
-  email:        string | null;
-  blog:         string | null;
-  avatar_url:   string;
-  html_url:     string;
-  followers:    number;
-  following:    number;
+  login: string;
+  name: string | null;
+  bio: string | null;
+  company: string | null;
+  location: string | null;
+  email: string | null;
+  blog: string | null;
+  avatar_url: string;
+  html_url: string;
+  followers: number;
+  following: number;
   public_repos: number;
   public_gists: number;
-  created_at:   string;
-  updated_at:   string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface GithubRepoRaw {
-  name:        string;
-  full_name:   string;
-  html_url:    string;
+  name: string;
+  full_name: string;
+  html_url: string;
   description: string | null;
-  language:    string | null;
+  language: string | null;
   stargazers_count: number;
   forks_count: number;
-  fork:        boolean;
-  topics:      string[];
-  updated_at:  string;
+  fork: boolean;
+  topics: string[];
+  updated_at: string;
 }
 
 export interface GithubEventRaw {
-  type:       string;
+  type: string;
   created_at: string;
 }
 

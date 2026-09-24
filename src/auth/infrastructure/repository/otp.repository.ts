@@ -6,14 +6,21 @@ import {
   IOtpRepository,
   UpsertOtpData,
 } from '../../domain/otp-repository.interface';
-import { IOtpRecord, OtpDocument, OtpPurpose } from '../../interfaces/otp.interface';
-import { DB_MODEL_REGISTRY, DbModelToken } from '../../../shared/mongoose/modelRegistry/mongoose.modelRegistry';
-
+import {
+  IOtpRecord,
+  OtpDocument,
+  OtpPurpose,
+} from '../../interfaces/otp.interface';
+import {
+  DB_MODEL_REGISTRY,
+  DbModelToken,
+} from '../../../shared/mongoose/modelRegistry/mongoose.modelRegistry';
 
 @Injectable()
 export class OtpRepository implements IOtpRepository {
   constructor(
-    @InjectModel(DB_MODEL_REGISTRY.OTP.MODEL_TOKEN as DbModelToken) private readonly otpModel: Model<OtpDocument>,
+    @InjectModel(DB_MODEL_REGISTRY.OTP.MODEL_TOKEN as DbModelToken)
+    private readonly otpModel: Model<OtpDocument>,
   ) {}
 
   async upsert(data: UpsertOtpData): Promise<IOtpRecord> {
@@ -33,7 +40,10 @@ export class OtpRepository implements IOtpRepository {
     return this.toRecord(doc);
   }
 
-  async findLatest(email: string, purpose: OtpPurpose): Promise<IOtpRecord | null> {
+  async findLatest(
+    email: string,
+    purpose: OtpPurpose,
+  ): Promise<IOtpRecord | null> {
     const doc = await this.otpModel
       .findOne({ email: email.toLowerCase(), purpose })
       .sort({ createdAt: -1 })
@@ -41,7 +51,10 @@ export class OtpRepository implements IOtpRepository {
     return doc ? this.toRecord(doc) : null;
   }
 
-  async deleteByEmailAndPurpose(email: string, purpose: OtpPurpose): Promise<void> {
+  async deleteByEmailAndPurpose(
+    email: string,
+    purpose: OtpPurpose,
+  ): Promise<void> {
     await this.otpModel
       .deleteMany({ email: email.toLowerCase(), purpose })
       .exec();

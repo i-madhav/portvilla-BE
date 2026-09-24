@@ -6,7 +6,7 @@ import { ProfileModule } from '../profile/profile.module';
 import { SessionController } from './session.controller';
 import { SessionService } from './session.service';
 
-import { SESSION_REPOSITORY } from './domain/session.repo.interface';
+import { SESSION_REPOSITORY } from './domain/session-repository.interface';
 import { SessionRepository } from './infrastructure/repository/session.repository';
 import { SessionSchema } from './infrastructure/schema/session.schema';
 

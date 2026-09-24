@@ -22,3 +22,13 @@ export const MAX_STAGES_PER_WORK = 20;
  * trims derived talk tracks to it.
  */
 export const STAGE_SUMMARY_MAX_LENGTH = 200;
+
+/**
+ * Upper bound on the owner's description of their profile (`brief.text`).
+ *
+ * Sized by what it is for rather than by storage: a few pages of honest prose
+ * about one person, company or product is the whole input the generator needs,
+ * and past that a "description" is a document being pasted in wholesale — which
+ * costs a real amount per generation and buries the facts that matter.
+ */
+export const MAX_BRIEF_LENGTH = 8000;

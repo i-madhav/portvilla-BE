@@ -11,18 +11,17 @@ import { AuthService } from './auth.service';
 import { USER_REPOSITORY } from './domain/user-repository.interface';
 import { OTP_REPOSITORY } from './domain/otp-repository.interface';
 
-import {
-  UserRepository,
-} from './infrastructure/repository/user.repository';
-import {
-  OtpRepository
-} from './infrastructure/repository/otp.repository';
+import { UserRepository } from './infrastructure/repository/user.repository';
+import { OtpRepository } from './infrastructure/repository/otp.repository';
 
 import { UserSchema } from './infrastructure/scehma/user.schema';
 import { OtpSchema } from './infrastructure/scehma/otp.schema';
 
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { DB_MODEL_REGISTRY, DbModelToken } from '../shared/mongoose/modelRegistry/mongoose.modelRegistry';
+import {
+  DB_MODEL_REGISTRY,
+  DbModelToken,
+} from '../shared/mongoose/modelRegistry/mongoose.modelRegistry';
 
 @Module({
   imports: [
@@ -31,8 +30,14 @@ import { DB_MODEL_REGISTRY, DbModelToken } from '../shared/mongoose/modelRegistr
     // in AuthService supplies its own secret and expiry explicitly.
     JwtModule.register({}),
     MongooseModule.forFeature([
-      { name: DB_MODEL_REGISTRY.USER.MODEL_TOKEN as DbModelToken, schema: UserSchema },
-      { name: DB_MODEL_REGISTRY.OTP.MODEL_TOKEN as DbModelToken, schema: OtpSchema },
+      {
+        name: DB_MODEL_REGISTRY.USER.MODEL_TOKEN as DbModelToken,
+        schema: UserSchema,
+      },
+      {
+        name: DB_MODEL_REGISTRY.OTP.MODEL_TOKEN as DbModelToken,
+        schema: OtpSchema,
+      },
     ]),
     MailModule,
   ],

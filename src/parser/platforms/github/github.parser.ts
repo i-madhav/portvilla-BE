@@ -1,6 +1,10 @@
 import { Platform } from '../../core/platform.enum';
 import { IPlatformParser } from '../../core/i-platform-parser';
-import { GithubProfile, GithubRepository, RepoInsights } from '../../core/parsed-profile.types';
+import {
+  GithubProfile,
+  GithubRepository,
+  RepoInsights,
+} from '../../core/parsed-profile.types';
 import { PlatformFetchError } from '../../core/platform-fetch.error';
 import {
   GithubUserRaw,
@@ -14,13 +18,74 @@ const GITHUB_API = 'https://api.github.com';
 
 // Filenames/dirs at repo root that indicate a specific tool or practice
 const TOOL_SIGNALS: Array<{ patterns: string[]; label: string }> = [
-  { patterns: ['.github/workflows', '.travis.yml', '.circleci', 'Jenkinsfile', '.gitlab-ci.yml', 'azure-pipelines.yml'], label: 'CI/CD' },
-  { patterns: ['Dockerfile', 'docker-compose.yml', 'docker-compose.yaml', '.dockerignore'], label: 'Docker' },
-  { patterns: ['jest.config.js', 'jest.config.ts', 'jest.config.mjs', 'vitest.config.ts', 'vitest.config.js', 'pytest.ini', 'setup.cfg', 'pyproject.toml', '__tests__', 'tests', 'test', 'spec'], label: 'Testing' },
-  { patterns: ['.eslintrc', '.eslintrc.js', '.eslintrc.ts', '.eslintrc.json', '.eslintrc.yml', 'eslint.config.js', 'eslint.config.mjs'], label: 'ESLint' },
-  { patterns: ['.prettierrc', '.prettierrc.js', '.prettierrc.json', '.prettierrc.yml', 'prettier.config.js'], label: 'Prettier' },
+  {
+    patterns: [
+      '.github/workflows',
+      '.travis.yml',
+      '.circleci',
+      'Jenkinsfile',
+      '.gitlab-ci.yml',
+      'azure-pipelines.yml',
+    ],
+    label: 'CI/CD',
+  },
+  {
+    patterns: [
+      'Dockerfile',
+      'docker-compose.yml',
+      'docker-compose.yaml',
+      '.dockerignore',
+    ],
+    label: 'Docker',
+  },
+  {
+    patterns: [
+      'jest.config.js',
+      'jest.config.ts',
+      'jest.config.mjs',
+      'vitest.config.ts',
+      'vitest.config.js',
+      'pytest.ini',
+      'setup.cfg',
+      'pyproject.toml',
+      '__tests__',
+      'tests',
+      'test',
+      'spec',
+    ],
+    label: 'Testing',
+  },
+  {
+    patterns: [
+      '.eslintrc',
+      '.eslintrc.js',
+      '.eslintrc.ts',
+      '.eslintrc.json',
+      '.eslintrc.yml',
+      'eslint.config.js',
+      'eslint.config.mjs',
+    ],
+    label: 'ESLint',
+  },
+  {
+    patterns: [
+      '.prettierrc',
+      '.prettierrc.js',
+      '.prettierrc.json',
+      '.prettierrc.yml',
+      'prettier.config.js',
+    ],
+    label: 'Prettier',
+  },
   { patterns: ['tsconfig.json', 'tsconfig.base.json'], label: 'TypeScript' },
-  { patterns: ['tailwind.config.js', 'tailwind.config.ts', 'tailwind.config.mjs'], label: 'Tailwind CSS' },
+  {
+    patterns: [
+      'tailwind.config.js',
+      'tailwind.config.ts',
+      'tailwind.config.mjs',
+    ],
+    label: 'Tailwind CSS',
+  },
   { patterns: ['.env.example', '.env.sample'], label: 'Env Config' },
   { patterns: ['kubernetes', 'k8s', 'helm'], label: 'Kubernetes' },
   { patterns: ['terraform', 'main.tf'], label: 'Terraform' },
@@ -79,8 +144,12 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
   async fetch(username: string): Promise<GithubProfile> {
     const [user, repos, events] = await Promise.all([
       this.githubFetch<GithubUserRaw>(`/users/${username}`),
-      this.githubFetch<GithubRepoRaw[]>(`/users/${username}/repos?sort=stars&per_page=10`),
-      this.githubFetch<GithubEventRaw[]>(`/users/${username}/events/public?per_page=100`),
+      this.githubFetch<GithubRepoRaw[]>(
+        `/users/${username}/repos?sort=stars&per_page=10`,
+      ),
+      this.githubFetch<GithubEventRaw[]>(
+        `/users/${username}/events/public?per_page=100`,
+      ),
     ]);
 
     const insights = await Promise.all(
@@ -88,23 +157,23 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
     );
 
     return {
-      username:        user.login,
-      name:            user.name,
-      bio:             user.bio,
-      company:         user.company,
-      location:        user.location,
-      email:           user.email,
-      blog:            user.blog,
-      avatarUrl:       user.avatar_url,
-      profileUrl:      user.html_url,
-      followers:       user.followers,
-      following:       user.following,
-      publicRepos:     user.public_repos,
-      publicGists:     user.public_gists,
+      username: user.login,
+      name: user.name,
+      bio: user.bio,
+      company: user.company,
+      location: user.location,
+      email: user.email,
+      blog: user.blog,
+      avatarUrl: user.avatar_url,
+      profileUrl: user.html_url,
+      followers: user.followers,
+      following: user.following,
+      publicRepos: user.public_repos,
+      publicGists: user.public_gists,
       topRepositories: repos.map((repo, i) => this.mapRepo(repo, insights[i])),
-      contributions:   this.countContributions(events),
-      createdAt:       user.created_at,
-      updatedAt:       user.updated_at,
+      contributions: this.countContributions(events),
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
     };
   }
 
@@ -130,7 +199,9 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
 
   private async githubFetchSafe<T>(path: string): Promise<T | null> {
     try {
-      const res = await fetch(`${GITHUB_API}${path}`, { headers: this.headers });
+      const res = await fetch(`${GITHUB_API}${path}`, {
+        headers: this.headers,
+      });
       if (!res.ok) return null;
       return res.json() as Promise<T>;
     } catch {
@@ -145,7 +216,9 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
   private async fetchInsights(fullName: string): Promise<RepoInsights> {
     const [languages, contents] = await Promise.all([
       this.githubFetchSafe<GithubLanguagesRaw>(`/repos/${fullName}/languages`),
-      this.githubFetchSafe<GithubContentItemRaw[]>(`/repos/${fullName}/contents`),
+      this.githubFetchSafe<GithubContentItemRaw[]>(
+        `/repos/${fullName}/contents`,
+      ),
     ]);
 
     const rootNames = new Set((contents ?? []).map((f) => f.name));
@@ -156,22 +229,26 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
     ]);
 
     return {
-      languages:     languages ?? {},
+      languages: languages ?? {},
       detectedTools: [...new Set(detectedTools)],
-      frameworks:    [...new Set(frameworks)],
+      frameworks: [...new Set(frameworks)],
       readme,
     };
   }
 
-  private async fetchReadme(fullName: string, rootNames: Set<string>): Promise<string | null> {
-    const readmeName = ['README.md', 'readme.md', 'README', 'README.txt'].find((n) =>
-      rootNames.has(n),
+  private async fetchReadme(
+    fullName: string,
+    rootNames: Set<string>,
+  ): Promise<string | null> {
+    const readmeName = ['README.md', 'readme.md', 'README', 'README.txt'].find(
+      (n) => rootNames.has(n),
     );
     if (!readmeName) return null;
 
-    const raw = await this.githubFetchSafe<{ encoding: string; content: string }>(
-      `/repos/${fullName}/contents/${readmeName}`,
-    );
+    const raw = await this.githubFetchSafe<{
+      encoding: string;
+      content: string;
+    }>(`/repos/${fullName}/contents/${readmeName}`);
     if (!raw) return null;
 
     try {
@@ -191,13 +268,17 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
     return found;
   }
 
-  private async detectFrameworks(fullName: string, rootNames: Set<string>): Promise<string[]> {
+  private async detectFrameworks(
+    fullName: string,
+    rootNames: Set<string>,
+  ): Promise<string[]> {
     const frameworks: string[] = [];
 
     if (rootNames.has('package.json')) {
-      const raw = await this.githubFetchSafe<{ encoding: string; content: string }>(
-        `/repos/${fullName}/contents/package.json`,
-      );
+      const raw = await this.githubFetchSafe<{
+        encoding: string;
+        content: string;
+      }>(`/repos/${fullName}/contents/package.json`);
       if (raw) {
         try {
           const decoded = Buffer.from(raw.content, 'base64').toString('utf-8');
@@ -205,7 +286,10 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
             dependencies?: Record<string, string>;
             devDependencies?: Record<string, string>;
           };
-          const allDeps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+          const allDeps = Object.keys({
+            ...pkg.dependencies,
+            ...pkg.devDependencies,
+          });
           for (const signal of PACKAGE_SIGNALS) {
             if (signal.deps.some((d) => allDeps.includes(d))) {
               frameworks.push(signal.label);
@@ -218,13 +302,17 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
     }
 
     if (rootNames.has('requirements.txt')) {
-      const raw = await this.githubFetchSafe<{ encoding: string; content: string }>(
-        `/repos/${fullName}/contents/requirements.txt`,
-      );
+      const raw = await this.githubFetchSafe<{
+        encoding: string;
+        content: string;
+      }>(`/repos/${fullName}/contents/requirements.txt`);
       if (raw) {
         try {
           const decoded = Buffer.from(raw.content, 'base64').toString('utf-8');
-          const lines = decoded.split('\n').map((l) => l.trim()).filter(Boolean);
+          const lines = decoded
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean);
           for (const signal of REQUIREMENTS_SIGNALS) {
             if (lines.some((l) => signal.pattern.test(l))) {
               frameworks.push(signal.label);
@@ -239,18 +327,21 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
     return frameworks;
   }
 
-  private mapRepo(repo: GithubRepoRaw, insights: RepoInsights): GithubRepository {
+  private mapRepo(
+    repo: GithubRepoRaw,
+    insights: RepoInsights,
+  ): GithubRepository {
     return {
-      name:        repo.name,
-      fullName:    repo.full_name,
-      url:         repo.html_url,
+      name: repo.name,
+      fullName: repo.full_name,
+      url: repo.html_url,
       description: repo.description,
-      language:    repo.language,
-      stars:       repo.stargazers_count,
-      forks:       repo.forks_count,
-      isForked:    repo.fork,
-      topics:      repo.topics ?? [],
-      updatedAt:   repo.updated_at,
+      language: repo.language,
+      stars: repo.stargazers_count,
+      forks: repo.forks_count,
+      isForked: repo.fork,
+      topics: repo.topics ?? [],
+      updatedAt: repo.updated_at,
       insights,
     };
   }
@@ -260,7 +351,12 @@ export class GithubParser implements IPlatformParser<GithubProfile> {
     return events.filter(
       (e) =>
         e.created_at.startsWith(currentYear) &&
-        ['PushEvent', 'PullRequestEvent', 'IssuesEvent', 'CreateEvent'].includes(e.type),
+        [
+          'PushEvent',
+          'PullRequestEvent',
+          'IssuesEvent',
+          'CreateEvent',
+        ].includes(e.type),
     ).length;
   }
 }

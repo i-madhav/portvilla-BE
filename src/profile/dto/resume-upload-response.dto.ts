@@ -36,8 +36,11 @@ export class ResumeSuggestionsDto {
   @ApiProperty({ type: 'array', items: { type: 'object' } })
   timeline!: EntryInput<TimelineEntry>[];
 
+  // `date` is nullable here even though `WorkEntry.date` is required: extraction
+  // never derives a work date, and this is a draft the user reviews and
+  // completes before anything is saved — see the mandatory-date decision doc.
   @ApiProperty({ type: 'array', items: { type: 'object' } })
-  works!: WorkEntryInput[];
+  works!: (Omit<WorkEntryInput, 'date'> & { date: string | null })[];
 
   /** Map the raw extraction onto complete profile entries with every field defaulted. */
   static fromExtraction(extraction: ResumeExtraction): ResumeSuggestionsDto {

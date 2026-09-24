@@ -9,6 +9,7 @@ import {
 import { KEYED_ARRAY_SECTIONS, withUniqueKeys } from '../../domain/entry-key';
 import type { KeyableEntry } from '../../domain/entry-key';
 import type {
+  IProfile,
   IProfileRecord,
   ProfileDocument,
   WorkEntryInput,
@@ -145,28 +146,47 @@ export class ProfileRepository implements IProfileRepository {
     return keyed;
   }
 
+  /**
+   * Document → record: the boundary a Mongoose type must not cross.
+   *
+   * **`toObject()` first.** Picking `doc.identity` alone leaves a live
+   * subdocument on a field the `IProfileRecord` type promises is plain data:
+   * reading it works, because Mongoose defines getters, but spreading it copies
+   * `$__`, `_doc` and `$__parent` and **none of the actual fields**. Every
+   * consumer that read field by field got away with it; the first one to spread
+   * a section got an object with no `entityType` in it.
+   *
+   * Safe to convert wholesale because every nested schema is `@Schema({ _id:
+   * false })`, so no entry gains an `_id` on the way out. Secrets are still
+   * dropped by picking field by field below, not by the conversion.
+   */
   private toRecord(doc: ProfileDocument): IProfileRecord {
+    const plain = doc.toObject<IProfile>();
+
     return {
       id: doc._id.toString(),
       userId: doc.userId.toString(),
-      username: doc.username,
-      visibility: doc.visibility,
-      identity: doc.identity,
-      works: doc.works,
-      timeline: doc.timeline,
-      capabilities: doc.capabilities,
-      offerings: doc.offerings,
-      metrics: doc.metrics,
-      testimonials: doc.testimonials,
-      team: doc.team,
-      media: doc.media,
-      content: doc.content,
-      social: doc.social,
-      aiSettings: doc.aiSettings,
-      agentPersona: doc.agentPersona,
-      agentStack: doc.agentStack,
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt,
+      username: plain.username,
+      visibility: plain.visibility,
+      identity: plain.identity,
+      works: plain.works,
+      timeline: plain.timeline,
+      capabilities: plain.capabilities,
+      offerings: plain.offerings,
+      metrics: plain.metrics,
+      testimonials: plain.testimonials,
+      team: plain.team,
+      media: plain.media,
+      content: plain.content,
+      social: plain.social,
+      // A profile written before `brief` existed has no such path in Mongo;
+      // the schema default only covers documents Mongoose hydrates with it.
+      brief: plain.brief ?? { text: null },
+      aiSettings: plain.aiSettings,
+      agentPersona: plain.agentPersona,
+      agentStack: plain.agentStack,
+      createdAt: plain.createdAt,
+      updatedAt: plain.updatedAt,
     };
   }
 }

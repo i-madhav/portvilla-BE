@@ -146,14 +146,24 @@ Debug and verbose logs are suppressed unless `LOG_LEVEL` is set or `NODE_ENV=dev
 Config loads from `/etc/secrets/portvilla-be/.env` first, then `.env`. Local MongoDB is on
 27017; `mongosh "$MONGODB_URI"` works for seeding.
 
+For a profile to look at, `pnpm build && pnpm seed:demo --apply` writes `portvilla` — the
+product describing itself — by running the real `GenerationService` over the description in
+`src/scripts/fixtures/portvilla-brief.ts` and accepting the draft through `PATCH
+/profiles/me`. It needs `PLATFORM_LLM_API_KEY` and `DEMO_USER_EMAIL`; without `--apply` it
+reads and prints but writes nothing.
+
 `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` use `getOrThrow` — without them the
 app does not boot. There is no `timeout` CLI on this macOS box.
 
 `pnpm test` runs Jest. Coverage is thin and deliberately shaped: the suites that exist
 cover the pure and the security-sensitive — the slide projector
 (`profile/domain/slide.projector.spec.ts`), the agent context allowlist and visibility rule
-(`agent/agent.service.spec.ts`), and the service-token guard
-(`agent/guards/service-token.guard.spec.ts`). All three are constructed by hand with plain
+(`agent/agent.service.spec.ts`), the service-token guard
+(`agent/guards/service-token.guard.spec.ts`), the owner-only `brief`
+(`profile/dto/profile-response.privacy.spec.ts`), the platform key selection
+(`llm/platform-llm.config.spec.ts`) and profile generation — both its pure assembly
+(`profile/generation/assemble.spec.ts`, where the grounding rules live) and its call
+pattern against a scripted fake (`profile/generation/generation.service.spec.ts`). All are constructed by hand with plain
 fixtures, no Nest testing module. Anything touching Mongoose or DI is still verified by
 building and exercising endpoints, not by a suite.
 
@@ -173,11 +183,19 @@ building and exercising endpoints, not by a suite.
   needs its own Deployment running `agent.portfolio start` before voice works in prod.
 - **Uploads are written to local disk** (`uploads/`) and are lost on every Cloud Run
   instance recycle. R2 migration is proposed, not implemented.
-- **`.env.example` is stale** — missing the `LIVEKIT_*` and `RESUME_LLM_*` groups. Resume
-  LLM extraction is therefore silently disabled in most environments
-  (`platformLlmSettings()` returns `null` when the keys are unset).
-- **Two separate LLM key sets**: `RESUME_LLM_*` (platform-owned, for resume parsing) vs
-  `profile.aiSettings` (user-owned, for their agent). Don't conflate them.
+- **`.env.example` is stale** — missing the `LIVEKIT_*` group. LLM extraction is silently
+  disabled wherever the platform keys are unset (`platformLlmSettings()` returns `null`),
+  which is the documented degrade path, not a bug.
+- **A record from the repository is plain data, and `toRecord()` is what makes it so.**
+  It calls `doc.toObject()` before picking fields. Handing out `doc.identity` directly
+  leaves a live Mongoose subdocument on a field typed as plain: reading it works, but
+  *spreading* it copies `$__`, `_doc` and `$__parent` and none of the real fields. That
+  cost an afternoon on 2026-09-19.
+- **Two separate LLM key sets**: `PLATFORM_LLM_*` (platform-owned — resume parsing, and
+  profile generation from 2026-09-19) vs `profile.aiSettings` (user-owned, for their
+  agent). Don't conflate them. `src/llm/platform-llm.config.ts` is the only reader of the
+  platform set; the old `RESUME_LLM_*` names are a deprecated fallback with one release
+  left.
 - **Directory typo `scehma/`** exists in `auth/infrastructure/` and `parser/infrastructure/`.
   Import paths depend on it — don't "fix" it in passing; it's a rename with a decision doc.
 - `profile` bypasses `DB_MODEL_REGISTRY` with its own `PROFILE_MODEL` constant.

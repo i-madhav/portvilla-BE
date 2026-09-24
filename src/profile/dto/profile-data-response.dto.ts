@@ -9,6 +9,7 @@ import {
 } from '../domain/profile.interface';
 import type {
   IProfileRecord,
+  BriefSection,
   IdentitySection,
   WorkEntry,
   TimelineEntry,
@@ -100,6 +101,13 @@ export class ProfileDataResponseDto {
   @ApiProperty()
   social!: SocialSection;
 
+  @ApiProperty({
+    description:
+      'The description this profile was generated from. Owner-facing only — ' +
+      'absent from the public profile, the agent context and the slide preview.',
+  })
+  brief!: BriefSection;
+
   @ApiProperty({ type: AiSettingsResponseDto })
   aiSettings!: AiSettingsResponseDto;
 
@@ -132,6 +140,7 @@ export class ProfileDataResponseDto {
     dto.media = record.media;
     dto.content = record.content;
     dto.social = record.social;
+    dto.brief = record.brief;
     dto.aiSettings = {
       provider: record.aiSettings.provider,
       apiKeyConfigured: record.aiSettings.apiKey !== null,

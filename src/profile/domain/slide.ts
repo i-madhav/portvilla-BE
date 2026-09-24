@@ -1,6 +1,8 @@
 import type {
   CapabilityProficiency,
+  ContentType,
   EntityType,
+  TestimonialRelationship,
   TimelineCategory,
   WorkStatus,
   WorkType,
@@ -30,6 +32,14 @@ export enum SlideTemplate {
   CAPABILITIES = 'capabilities',
   TIMELINE = 'timeline',
   CONTACT = 'contact',
+  OFFERINGS = 'offerings',
+  METRICS = 'metrics',
+  TESTIMONIALS = 'testimonials',
+  TEAM = 'team',
+  CONTENT = 'content',
+  // `media` is deliberately absent. The asset pipeline has not landed, so there
+  // is no media on any profile to project — a template for it would be a screen
+  // that can only ever be empty.
 }
 
 /**
@@ -141,10 +151,93 @@ export interface ContactPayload {
   // process; the owner's inbox and number are not an outward-facing affordance.
 }
 
+export interface OfferingsPayload {
+  items: {
+    key: string;
+    name: string;
+    description: string;
+    icon: string | null;
+    price: string | null;
+    features: string[];
+    highlighted: boolean;
+    tags: string[];
+    cta: { label: string; url: string } | null;
+  }[];
+  // Nothing is deliberately absent here. An offering is a sales page in
+  // miniature — every field of it, price and call to action included, was
+  // written to be read by a visitor.
+}
+
+export interface MetricsPayload {
+  items: {
+    key: string;
+    value: string;
+    label: string;
+    description: string | null;
+    icon: string | null;
+    category: string | null;
+  }[];
+  // Nothing deliberately absent: a metric exists to be quoted.
+}
+
+export interface TestimonialsPayload {
+  items: {
+    key: string;
+    text: string;
+    author: string;
+    role: string | null;
+    organization: string | null;
+    /**
+     * Outward-facing, and correctly so: it is the author's own picture, shown
+     * beside their words on the public page. Unlike `identity.resume` this is
+     * not the owner's private material.
+     */
+    avatarUrl: string | null;
+    relationship: TestimonialRelationship;
+    featured: boolean;
+  }[];
+}
+
+export interface TeamPayload {
+  items: {
+    key: string;
+    name: string;
+    role: string;
+    bio: string | null;
+    avatarUrl: string | null;
+    /**
+     * Outward-facing: the profiles a member chose to publish. `social.email`
+     * and `social.phone` stay out of the catalog, but a team member's public
+     * links are the point of listing them.
+     */
+    links: { platform: string; url: string }[];
+  }[];
+}
+
+export interface ContentPayload {
+  items: {
+    key: string;
+    type: ContentType;
+    title: string;
+    url: string;
+    description: string | null;
+    thumbnailUrl: string | null;
+    date: string | null;
+    tags: string[];
+    featured: boolean;
+  }[];
+  // Nothing deliberately absent: every field is published work, already public
+  // wherever it was published.
+}
+
 // ─── Slide ────────────────────────────────────────────────────────────────────
 
 interface SlideOf<T extends SlideTemplate, P> {
-  /** `identity` | `work:{key}` | `work:{key}:stage:{key}` | `capabilities` | … */
+  /**
+   * `identity` | `work:{key}` | `work:{key}:stage:{key}` | `capabilities` | …
+   * Every section slide is named after its section; only works are keyed,
+   * because only works produce more than one slide.
+   */
   id: string;
   template: T;
   title: string;
@@ -163,7 +256,12 @@ export type Slide =
   | SlideOf<SlideTemplate.WORK_STAGE, WorkStagePayload>
   | SlideOf<SlideTemplate.CAPABILITIES, CapabilitiesPayload>
   | SlideOf<SlideTemplate.TIMELINE, TimelinePayload>
-  | SlideOf<SlideTemplate.CONTACT, ContactPayload>;
+  | SlideOf<SlideTemplate.CONTACT, ContactPayload>
+  | SlideOf<SlideTemplate.OFFERINGS, OfferingsPayload>
+  | SlideOf<SlideTemplate.METRICS, MetricsPayload>
+  | SlideOf<SlideTemplate.TESTIMONIALS, TestimonialsPayload>
+  | SlideOf<SlideTemplate.TEAM, TeamPayload>
+  | SlideOf<SlideTemplate.CONTENT, ContentPayload>;
 
 export type SlidePayload = Slide['payload'];
 
@@ -174,6 +272,11 @@ export const SlideId = {
   capabilities: 'capabilities',
   timeline: 'timeline',
   contact: 'contact',
+  offerings: 'offerings',
+  metrics: 'metrics',
+  testimonials: 'testimonials',
+  team: 'team',
+  content: 'content',
   work: (workKey: string) => `work:${workKey}`,
   workStage: (workKey: string, stageKey: string) =>
     `work:${workKey}:stage:${stageKey}`,

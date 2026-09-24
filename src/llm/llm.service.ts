@@ -2,7 +2,40 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AiSettingsSection } from '../profile/domain/profile.interface';
 import { RepoInsights } from '../parser/core/parsed-profile.types';
 import { createLlmProvider } from './llm-provider.factory';
+import type { LlmCompleteOptions, LlmUsage } from './i-llm-provider';
 import type { ResumeExtraction } from './resume-extraction.types';
+
+/**
+ * One JSON completion: whatever object the model returned, and what it cost.
+ *
+ * `value` is `null` for every failure — a provider error, a refusal, prose
+ * instead of JSON — because every caller treats "nothing usable came back" the
+ * same way. (`unknown` already admits `null`; the contract is in this sentence,
+ * not in the type.) `usage` survives a parse failure on purpose: a call that
+ * produced garbage still cost money, and a generation that silently
+ * under-reports its spend is the one nobody catches.
+ */
+export interface JsonCompletion {
+  value: unknown;
+  usage: LlmUsage | null;
+}
+
+/**
+ * The seam `GenerationService` depends on, rather than the whole `LlmService`.
+ *
+ * Declared by the consumer and satisfied structurally by `LlmService`, so the
+ * spec hands over a scripted fake with no Nest testing module, no network and
+ * no cast. `createLlmProvider` is deliberately *not* injectable: the provider
+ * is chosen per call from the settings the caller passes.
+ */
+export interface IJsonCompleter {
+  completeJson(
+    systemPrompt: string,
+    userPrompt: string,
+    settings: AiSettingsSection,
+    options?: LlmCompleteOptions,
+  ): Promise<JsonCompletion>;
+}
 
 const SUMMARIZE_SYSTEM = `You are a technical writer helping a developer present their work.
 Be concise . Focus on: what the project does, the key technologies used, and anything notable about the implementation.
@@ -19,8 +52,45 @@ Return ONLY a JSON object — no prose, no markdown fences — matching exactly 
 Rules: Use only facts present in the resume — never invent employers, dates, or skills. If a field is unknown, use null (or an empty array). "bio" is a 1-2 sentence third-person summary drawn from the resume. Keep "capabilities" to concrete skills, at most 20. Dates must be "YYYY-MM" or "YYYY".`;
 
 @Injectable()
-export class LlmService {
+export class LlmService implements IJsonCompleter {
   private readonly logger = new Logger(LlmService.name);
+
+  /**
+   * One prompt in, one JSON object out — the shape every generation pass uses.
+   *
+   * Never throws, for the same reason `extractResume` never throws: a single
+   * failed section must degrade to an empty section with a warning, not fail
+   * the whole request the owner is waiting on. The caller decides what a null
+   * means; here it only means "no object came back".
+   */
+  async completeJson(
+    systemPrompt: string,
+    userPrompt: string,
+    settings: AiSettingsSection,
+    options?: LlmCompleteOptions,
+  ): Promise<JsonCompletion> {
+    try {
+      const provider = createLlmProvider(settings);
+      const { text, usage } = await provider.complete(
+        systemPrompt,
+        userPrompt,
+        options,
+      );
+      const value = parseJsonObject(text);
+
+      if (value === null) {
+        this.logger.warn(
+          `completeJson: no JSON object in a ${text.length}-character response`,
+        );
+      }
+      return { value, usage };
+    } catch (err) {
+      this.logger.warn(
+        `completeJson: completion failed — ${(err as Error).message}`,
+      );
+      return { value: null, usage: null };
+    }
+  }
   async summarizeRepo(
     fullName: string,
     insights: RepoInsights,
@@ -48,7 +118,8 @@ export class LlmService {
       `Write a project summary a developer would be proud to show.`,
     ].join('\n');
 
-    return provider.complete(SUMMARIZE_SYSTEM, userPrompt);
+    const { text } = await provider.complete(SUMMARIZE_SYSTEM, userPrompt);
+    return text;
   }
 
   /**
@@ -67,8 +138,8 @@ export class LlmService {
       const provider = createLlmProvider(aiSettings);
       // Bound worst-case tokens; a resume's signal is in the first pages anyway.
       const snippet = resumeText.slice(0, 20000);
-      const raw = await provider.complete(RESUME_SYSTEM, snippet);
-      return this.parseExtraction(raw);
+      const { text } = await provider.complete(RESUME_SYSTEM, snippet);
+      return this.parseExtraction(text);
     } catch (err) {
       this.logger.warn(
         `extractResume: extraction failed — ${(err as Error).message}`,
@@ -77,21 +148,11 @@ export class LlmService {
     }
   }
 
-  /** Defensively parse the model's JSON, tolerating stray prose or code fences. */
   private parseExtraction(raw: string): ResumeExtraction | null {
-    const start = raw.indexOf('{');
-    const end = raw.lastIndexOf('}');
-    if (start === -1 || end <= start) return null;
+    const parsed = parseJsonObject(raw);
+    if (parsed === null) return null;
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw.slice(start, end + 1));
-    } catch {
-      return null;
-    }
-    if (typeof parsed !== 'object' || parsed === null) return null;
-
-    const obj = parsed as Record<string, unknown>;
+    const obj = parsed;
     const asArray = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
     const str = (v: unknown): string | null =>
       typeof v === 'string' && v.trim() ? v.trim() : null;
@@ -151,4 +212,29 @@ export class LlmService {
     }
     return { identity, capabilities, timeline, works };
   }
+}
+
+/**
+ * The model's JSON, tolerating the prose and code fences it wraps around it.
+ *
+ * First `{` to last `}` rather than a fence-stripping regex: it survives
+ * "Here's the JSON you asked for:" and ```json alike, and it is the same rule
+ * the résumé path has used since July. Structured-output APIs would remove the
+ * need for it, at the cost of tying the abstraction to one provider.
+ */
+function parseJsonObject(raw: string): Record<string, unknown> | null {
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+  return parsed as Record<string, unknown>;
 }

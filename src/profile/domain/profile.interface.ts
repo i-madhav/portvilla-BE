@@ -219,7 +219,8 @@ export interface WorkEntry {
     code: string;
     description: string | null;
   }[];
-  date: string | null;
+  /** When this work happened. Required — narration needs a time anchor. */
+  date: string;
   /** The work's arc, in order. Empty for a work with no story to walk. */
   stages: StageEntry[];
 }
@@ -317,6 +318,23 @@ export interface ContentEntry {
   featured: boolean;
 }
 
+/**
+ * The owner's own description of what this profile is for — the raw source text
+ * everything generated from it is derived from.
+ *
+ * **Private by construction.** It is working material, not a section of the
+ * portfolio: it holds whatever the owner pasted, in whatever state, and the
+ * public prose drawn from it lives in `identity.bio` / `identity.about`. It is
+ * therefore absent from `PublicProfileResponseDto`, `AgentContextResponseDto`
+ * and the owner's slide preview, and only `ProfileDataResponseDto` carries it.
+ *
+ * Stored rather than discarded so "regenerate" does not mean "retype", and so
+ * the dashboard can show the owner the text their deck was built from.
+ */
+export interface BriefSection {
+  text: string | null;
+}
+
 export interface SocialSection {
   links: { platform: string; url: string; label: string | null }[];
   email: string | null;
@@ -411,6 +429,7 @@ export interface IProfile {
   media: MediaEntry[];
   content: ContentEntry[];
   social: SocialSection;
+  brief: BriefSection;
   aiSettings: AiSettingsSection;
   agentPersona: AgentPersonaSection;
   agentStack: AgentStackSection;
@@ -441,6 +460,7 @@ export interface IProfileRecord {
   media: MediaEntry[];
   content: ContentEntry[];
   social: SocialSection;
+  brief: BriefSection;
   aiSettings: AiSettingsSection;
   agentPersona: AgentPersonaSection;
   agentStack: AgentStackSection;

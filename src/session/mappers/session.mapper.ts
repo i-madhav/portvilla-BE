@@ -1,5 +1,5 @@
-import { SessionResponseDto } from '../dto/createSession';
-import { ISessionRecord } from '../session.interface';
+import { SessionResponseDto } from '../dto/create-session.dto';
+import { ISessionRecord } from '../domain/session.interface';
 
 export class SessionMapper {
   static toResponseDto(

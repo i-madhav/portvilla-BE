@@ -22,17 +22,17 @@ import {
   SessionStatus,
   SessionType,
 } from './domain/session.interface';
-import { SESSION_REPOSITORY } from './domain/session.repo.interface';
-import type { ISessionRepository } from './domain/session.repo.interface';
+import { SESSION_REPOSITORY } from './domain/session-repository.interface';
+import type { ISessionRepository } from './domain/session-repository.interface';
 import type {
   CreateSessionDto,
   SessionResponseDto,
-} from './domain/dto/createSession';
+} from './dto/create-session.dto';
 import type {
   SessionActivityDto,
   RecentSessionDto,
-} from './domain/dto/sessionActivity';
-import { SessionMapper } from './domain/mapper/session.mapper';
+} from './dto/session-activity.dto';
+import { SessionMapper } from './mappers/session.mapper';
 import {
   MONTHLY_MINUTES_ENV,
   isBudgetExhausted,
@@ -112,7 +112,9 @@ export class SessionService {
     } catch (err) {
       // A bad signature is a rejected caller, not a server fault: 401, not 500.
       // 500 would also make LiveKit retry a permanently-invalid event forever.
-      this.logger.warn(`webhook: signature verification failed — ${(err as Error).message}`);
+      this.logger.warn(
+        `webhook: signature verification failed — ${(err as Error).message}`,
+      );
       throw new UnauthorizedException('Invalid webhook signature.');
     }
 

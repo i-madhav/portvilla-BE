@@ -15,6 +15,7 @@
     "backfill:entry-keys": "node dist/scripts/backfill-entry-keys.js",
     "backfill:agent-stack": "node dist/scripts/backfill-agent-stack.js",
     "presets:export": "node dist/scripts/export-agent-presets.js",
+    "seed:demo": "node dist/scripts/seed-demo.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -36,6 +37,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "file-type": "^22.1.1",
     "livekit-server-sdk": "^2.15.4",
     "mongoose": "^9.6.3",
     "multer": "^2.1.1",
@@ -46,6 +48,7 @@
     "pdf-parse": "^2.4.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.4",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {

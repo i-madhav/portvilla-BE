@@ -16,6 +16,7 @@ import { ProfileSchema } from './infrastructure/schema/profile.schema';
 import { ProfileOwnerGuard } from './guards/profile-owner.guard';
 import { ResumeSuggestionsService } from './resume/resume-suggestions.service';
 import { ResumeTextExtractor } from './resume/resume-text.extractor';
+import { GenerationService } from './generation/generation.service';
 
 @Module({
   imports: [
@@ -32,6 +33,9 @@ import { ResumeTextExtractor } from './resume/resume-text.extractor';
     // platform credentials. LlmModule is imported for the latter.
     ResumeTextExtractor,
     ResumeSuggestionsService,
+    // Description → profile draft. Also on platform credentials, also through
+    // LlmModule, and also writing nothing of its own.
+    GenerationService,
   ],
   exports: [PROFILE_REPOSITORY, ProfileOwnerGuard],
 })

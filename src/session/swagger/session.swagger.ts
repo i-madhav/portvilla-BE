@@ -9,8 +9,8 @@ import {
 import {
   CreateSessionDto,
   SessionResponseDto,
-} from '../domain/dto/createSession';
-import { SessionActivityDto } from '../domain/dto/sessionActivity';
+} from '../dto/create-session.dto';
+import { SessionActivityDto } from '../dto/session-activity.dto';
 
 // ─── POST /session ────────────────────────────────────────────────────────────
 

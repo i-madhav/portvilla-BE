@@ -37,15 +37,23 @@ export class ProfileOwnerGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<ProfileRequest>();
     const userId = req.user.sub;
 
-    this.logger.debug(`canActivate: verifying profile ownership (userId=${userId})`);
+    this.logger.debug(
+      `canActivate: verifying profile ownership (userId=${userId})`,
+    );
     const profile = await this.profileRepository.findByUserId(userId);
     if (!profile) {
-      this.logger.warn(`canActivate: no profile for user, onboarding incomplete (userId=${userId})`);
-      throw new NotFoundException('Profile not found. Complete onboarding first.');
+      this.logger.warn(
+        `canActivate: no profile for user, onboarding incomplete (userId=${userId})`,
+      );
+      throw new NotFoundException(
+        'Profile not found. Complete onboarding first.',
+      );
     }
 
     req.profile = profile;
-    this.logger.debug(`canActivate: ownership confirmed (userId=${userId}, profileId=${profile.id})`);
+    this.logger.debug(
+      `canActivate: ownership confirmed (userId=${userId}, profileId=${profile.id})`,
+    );
     return true;
   }
 }

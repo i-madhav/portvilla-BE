@@ -188,10 +188,16 @@ export class WorkEntryDto {
   @IsOptional()
   codeSnippets?: CodeSnippetDto[];
 
-  @ApiPropertyOptional({ example: '2024-03', nullable: true })
+  @ApiProperty({
+    example: '2024-03',
+    description:
+      'When this work happened. Required — a work with no time anchor is not ' +
+      'narratable as part of an arc. Array order is still the only ordering; ' +
+      'this is the time the agent speaks, not the position it shows in.',
+  })
   @IsString()
-  @IsOptional()
-  date?: string | null;
+  @IsNotEmpty()
+  date!: string;
 
   @ApiPropertyOptional({
     type: [StageEntryDto],

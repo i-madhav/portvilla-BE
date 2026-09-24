@@ -41,7 +41,7 @@ import { AssetModule } from './asset/asset.module';
     ParserModule,
     SessionModule,
     AgentModule,
-    AssetModule
+    AssetModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

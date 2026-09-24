@@ -9,7 +9,10 @@ export class GithubProfileResponseDto implements GithubProfile {
   @ApiProperty({ example: 'Linus Torvalds', nullable: true })
   name!: string | null;
 
-  @ApiProperty({ example: 'Just a random Linux and git kernel maintainer', nullable: true })
+  @ApiProperty({
+    example: 'Just a random Linux and git kernel maintainer',
+    nullable: true,
+  })
   bio!: string | null;
 
   @ApiProperty({ example: 'Linux Foundation', nullable: true })
@@ -45,7 +48,10 @@ export class GithubProfileResponseDto implements GithubProfile {
   @ApiProperty({ type: [GithubRepositoryDto] })
   topRepositories!: GithubRepositoryDto[];
 
-  @ApiProperty({ example: 42, description: 'Push/PR/issue/create events in the current calendar year' })
+  @ApiProperty({
+    example: 42,
+    description: 'Push/PR/issue/create events in the current calendar year',
+  })
   contributions!: number;
 
   @ApiProperty({ example: '2011-09-03T15:26:22Z' })

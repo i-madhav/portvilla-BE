@@ -20,6 +20,7 @@ import { TeamMemberEntryDto } from './sections/team.dto';
 import { MediaEntryDto } from './sections/media.dto';
 import { ContentEntryDto } from './sections/content.dto';
 import { SocialDto } from './sections/social.dto';
+import { BriefDto } from './sections/brief.dto';
 import { UpdateAiSettingsDto } from './update-ai-settings.dto';
 import { UpdateAgentPersonaDto } from './update-agent-persona.dto';
 import { UpdateAgentStackDto } from './agent-stack/update-agent-stack.dto';
@@ -136,6 +137,17 @@ export class UpdateProfileDto {
   @Type(() => SocialDto)
   @IsOptional()
   social?: SocialDto;
+
+  @ApiPropertyOptional({
+    type: BriefDto,
+    description:
+      'The owner-only source description. Never returned to visitors or to the ' +
+      'voice agent.',
+  })
+  @ValidateNested()
+  @Type(() => BriefDto)
+  @IsOptional()
+  brief?: BriefDto;
 
   @ApiPropertyOptional({ type: UpdateAiSettingsDto })
   @ValidateNested()

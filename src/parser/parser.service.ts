@@ -11,7 +11,8 @@ export class ParserService {
   constructor(
     private readonly config: ConfigService,
     private readonly llmService: LlmService,
-    @Inject(PROFILE_REPOSITORY) private readonly profileRepository: IProfileRepository,
+    @Inject(PROFILE_REPOSITORY)
+    private readonly profileRepository: IProfileRepository,
   ) {}
 
   github(): ParserInstance<GithubParser> {
@@ -23,11 +24,17 @@ export class ParserService {
   async summarizeRepo(userId: string, repoFullName: string): Promise<string> {
     const profile = await this.profileRepository.findByUserId(userId);
     if (!profile) {
-      throw new NotFoundException('Profile not found — create a profile before using AI features');
+      throw new NotFoundException(
+        'Profile not found — create a profile before using AI features',
+      );
     }
 
     const insights = await this.github().fetchInsightsPublic(repoFullName);
 
-    return this.llmService.summarizeRepo(repoFullName, insights, profile.aiSettings);
+    return this.llmService.summarizeRepo(
+      repoFullName,
+      insights,
+      profile.aiSettings,
+    );
   }
 }

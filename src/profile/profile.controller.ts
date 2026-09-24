@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   Body,
   Controller,
   Delete,
@@ -54,7 +55,16 @@ import {
   DeleteProfileEndpoint,
   UpdateProfileEndpoint,
   GetAgentStackCatalogEndpoint,
+  GetProfilePreviewEndpoint,
+  GenerateProfileEndpoint,
 } from './swagger/profile.swagger';
+import { ProfilePreviewResponseDto } from './dto/profile-preview-response.dto';
+import { ProfileDraftResponseDto } from './dto/profile-draft-response.dto';
+import { GenerateProfileDto } from './dto/generate-profile.dto';
+import {
+  GenerationFailedError,
+  GenerationService,
+} from './generation/generation.service';
 
 // Decorator to extract the pre-fetched profile from the guard
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
@@ -70,7 +80,13 @@ const ProfileFromGuard = createParamDecorator(
 @ApiTags('Profile')
 @Controller()
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) {}
+  constructor(
+    private readonly profileService: ProfileService,
+    // Injected here rather than through ProfileService: generation shares
+    // nothing with it, and ProfileService is already the largest file in the
+    // module. The controller stays HTTP-only either way.
+    private readonly generationService: GenerationService,
+  ) {}
 
   // ─── Profile CRUD ──────────────────────────────────────────────────────────
 
@@ -143,6 +159,16 @@ export class ProfileController {
     return this.profileService.getProfileData(user.sub);
   }
 
+  @Get('profiles/me/preview')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @GetProfilePreviewEndpoint()
+  getProfilePreview(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ProfilePreviewResponseDto> {
+    return this.profileService.getPreview(user.sub);
+  }
+
   @Patch('profiles/me')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, ProfileOwnerGuard)
@@ -152,6 +178,42 @@ export class ProfileController {
     @Body() dto: UpdateProfileDto,
   ): Promise<ProfileDataResponseDto> {
     return this.profileService.updateProfile(profile, dto);
+  }
+
+  // ─── Generation ────────────────────────────────────────────────────────────
+
+  /**
+   * Throttled **per IP**, which is what `@nestjs/throttler` keys on by default
+   * and what is wanted here: the cost being guarded is Portvilla's own API
+   * spend, and one person with two accounts is the case a per-user limit misses.
+   */
+  @Post('profiles/me/generate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, ProfileOwnerGuard)
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  @GenerateProfileEndpoint()
+  async generateProfile(
+    @ProfileFromGuard() profile: IProfileRecord,
+    @Body() dto: GenerateProfileDto,
+  ): Promise<ProfileDraftResponseDto> {
+    try {
+      const result = await this.generationService.generate(
+        profile,
+        dto.description,
+      );
+      return ProfileDraftResponseDto.fromResult(profile, result);
+    } catch (err) {
+      // Mapped here rather than thrown as an HTTP error from the service: the
+      // workflow knows it failed, the controller knows what that means over
+      // HTTP. A failed *section* never reaches this — it is a warning.
+      if (err instanceof GenerationFailedError) {
+        throw new BadGatewayException({
+          code: 'GENERATION_FAILED',
+          message: err.message,
+        });
+      }
+      throw err;
+    }
   }
 
   @Post('profiles/me/resume')

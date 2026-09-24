@@ -12,7 +12,7 @@ import type {
   CreateSessionData,
   DailyCount,
   DurationStats,
-} from '../../domain/session.repo.interface';
+} from '../../domain/session-repository.interface';
 import {
   DB_MODEL_REGISTRY,
   DbModelToken,

@@ -15,7 +15,8 @@ function diskStorageFor(subfolder: string): StorageEngine {
   return diskStorage({
     destination: (_req, _file, cb) => cb(null, dest),
     filename: (req, file, cb) => {
-      const userId: string = (req as { user?: { sub?: string } }).user?.sub ?? 'unknown';
+      const userId: string =
+        (req as { user?: { sub?: string } }).user?.sub ?? 'unknown';
       const ext = extname(file.originalname).toLowerCase();
       cb(null, `${userId}-${Date.now()}${ext}`);
     },
@@ -57,7 +58,10 @@ export const profileImageUploadConfig = {
     cb: (error: Error | null, acceptFile: boolean) => void,
   ): void => {
     if (!ALLOWED_IMAGE_MIMETYPES.includes(file.mimetype)) {
-      cb(new BadRequestException('Profile image must be JPEG, PNG, or WebP.'), false);
+      cb(
+        new BadRequestException('Profile image must be JPEG, PNG, or WebP.'),
+        false,
+      );
       return;
     }
     cb(null, true);

@@ -14,7 +14,10 @@ import type { JwtPayload } from '../auth/interfaces/jwt.interface';
 import { ParserService } from './parser.service';
 import { PlatformFetchError } from './core/platform-fetch.error';
 import { SummarizeRepoDto } from './dto/summarize-repo.dto';
-import { GetGithubProfileEndpoint, SummarizeRepoEndpoint } from './swagger/parser.swagger';
+import {
+  GetGithubProfileEndpoint,
+  SummarizeRepoEndpoint,
+} from './swagger/parser.swagger';
 
 @ApiTags('Parser')
 @Controller('parser')
@@ -42,7 +45,10 @@ export class ParserController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: SummarizeRepoDto,
   ) {
-    const summary = await this.parserService.summarizeRepo(user.sub, dto.repoFullName);
+    const summary = await this.parserService.summarizeRepo(
+      user.sub,
+      dto.repoFullName,
+    );
     return { summary };
   }
 }

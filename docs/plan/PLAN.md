@@ -176,13 +176,26 @@ detected from root filenames (CI/CD, Docker, Testing, …), frameworks detected 
 the generic `fetch()` and platform-specific methods off one object.
 
 ### `llm` — provider abstraction
-`ILlmProvider` is a one-method interface: `complete(system, user) => string`.
+`ILlmProvider` is a one-method interface:
+`complete(system, user, options?: { maxTokens?, effort? }) => { text, usage }`.
+`usage` is the provider's own token counts, or `null` where it reports none — never an
+estimate, because a guessed token count ends up in a bill comparison.
 `createLlmProvider(settings)` switches on `LlmProvider` and returns an OpenAI-compat,
 Anthropic, or Ollama provider. Groq/DeepSeek/Custom all reuse the OpenAI-compatible
-client with a different `baseURL`.
+client with a different `baseURL`. The Anthropic provider defaults to `claude-opus-5`,
+takes `max_tokens` from the caller (4096 when unset), uses a 120 s per-request timeout,
+checks `stop_reason` before reading content, and joins every text block rather than
+reading `content[0]` — on a thinking model the first block is not the answer.
 
-Two callers only: repo summarization (uses the *user's* configured key) and resume
-extraction (uses a *platform* key from env — see §8).
+`LlmService` adds `completeJson(system, user, settings, options?)` on top: one prompt in,
+one parsed JSON object out, `null` on any failure. It never throws — every caller treats
+"nothing usable came back" the same way. The defensive parse (first `{` to last `}`,
+fences tolerated) is shared with résumé extraction.
+
+`platform-llm.config.ts` holds `platformLlmSettings(config)`: the single reader of the
+platform key set (`PLATFORM_LLM_*`, falling back to the deprecated `RESUME_LLM_*` with a
+one-time warning). Three callers: repo summarization (uses the *user's* configured key),
+résumé extraction and profile generation (both use the *platform* key — see §8).
 
 ### `mail` — Nodemailer
 Single responsibility: send the OTP email over SMTP.
@@ -244,6 +257,10 @@ team[]        members with roles and links
 media[]       image/video gallery
 content[]     blog | talk | paper | video | podcast | course
 social        { links[], email, phone, calendarUrl }
+brief         { text }        ← the owner's source description (<= 8000 chars), the input
+                                profile generation reads. Owner-only: present in
+                                ProfileDataResponseDto and nowhere else — not in the public
+                                profile, the agent context or the slide preview.
 aiSettings    { provider, apiKey, model, baseUrl }        ← never exposed publicly
 agentPersona  { agentName, tone, verbosity, technicalDepth }         ← how it speaks (prompt)
 agentStack    { pipeline, language{primary,listen,reply}, stt{model,keyterms},
@@ -354,12 +371,27 @@ This distinction matters and is easy to get wrong.
 | Path | Key source | Purpose |
 |---|---|---|
 | `POST /parser/github/summarize` | The **user's** `profile.aiSettings.apiKey` | Their spend, their model |
-| `POST /profiles/me/resume` | **Platform** env: `RESUME_LLM_API_KEY` / `_PROVIDER` / `_MODEL` / `_BASE_URL` | A user in onboarding has no key configured yet |
+| `POST /profiles/me/resume` | **Platform** env: `PLATFORM_LLM_API_KEY` / `_PROVIDER` / `_MODEL` / `_BASE_URL`, read by `platformLlmSettings()` | A user in onboarding has no key configured yet |
+| `POST /profiles/me/generate` | **Platform**, same group | The owner is describing themselves, not paying to |
 | Voice conversation | The **agent worker's** own config | Not in this repo at all |
 
 Resume extraction degrades gracefully at every step: no key → `suggestions: null`;
 unparseable PDF → `null`; model returns garbage → `null`. The user just types it
 themselves. Never throws.
+
+**Profile generation** (`profile/generation/`, 2026-09-19) is the second platform-funded
+path: one call reads the owner's description into a fact sheet, then one call per planned
+knowledge section fans out from it in parallel, then a pure pass validates every entry
+against the same section DTOs `PATCH /profiles/me` uses, checks each URL, quote, number
+and date against the description, caps, dedupes and drops keys. It **writes nothing** —
+the response is a `PATCH` body the owner accepts. A failed section is a warning and an
+empty section; only a failed fact sheet fails the request, as `502 GENERATION_FAILED`.
+Throttled to 5 per 10 minutes per IP.
+
+The platform key set was renamed from `RESUME_LLM_*` to `PLATFORM_LLM_*` on 2026-09-19,
+when a second platform-funded feature (profile generation) arrived and a name meaning
+"résumé" stopped describing it. The old names are still read as a fallback and warn once;
+they are removed after one release.
 
 `aiSettings.apiKey` is stored **in plaintext** today. Encryption at rest was in the
 original design and has not been implemented.
@@ -385,7 +417,9 @@ then `.env`.
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | **yes** | `SessionService` |
 | `AGENT_SERVICE_TOKEN` | **yes** | `ServiceTokenGuard` — shared with the worker; min 24 chars |
 | `GITHUB_TOKEN` | optional | Raises GitHub rate limit 60 → 5000/hr |
-| `RESUME_LLM_API_KEY` / `_PROVIDER` / `_MODEL` / `_BASE_URL` | optional | Resume extraction; absent → feature off |
+| `PLATFORM_LLM_API_KEY` / `_PROVIDER` / `_MODEL` / `_BASE_URL` | optional | Platform-funded LLM work (résumé extraction, profile generation); absent → both features off |
+| `RESUME_LLM_API_KEY` / `_PROVIDER` / `_MODEL` / `_BASE_URL` | optional | **Deprecated** — read only when `PLATFORM_LLM_API_KEY` is unset, warns once |
+| `DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD` | optional | `scripts/seed-demo.ts` only — the account that owns the `portvilla` demo profile. The password is read only when that account has to be created |
 
 Anything marked **yes** uses `getOrThrow` — the app refuses to boot without it.
 
@@ -396,6 +430,24 @@ pnpm install          # pnpm, NOT npm — npm breaks on the pnpm node_modules la
 pnpm run start:dev
 LOG_LEVEL=debug pnpm run start:dev   # debug/verbose are suppressed otherwise
 ```
+
+Standalone scripts are built first and then run from `dist/` — they bootstrap the app's
+own modules, so they read the same env and the same repositories the API does.
+
+```bash
+pnpm build && pnpm backfill:entry-keys   # one-shot: key every array entry
+pnpm build && pnpm backfill:agent-stack  # one-shot: persona speed → agentStack
+pnpm build && pnpm presets:export        # agent-stack presets as JSON, for the worker
+pnpm build && pnpm seed:demo             # the `portvilla` demo profile — dry run
+pnpm build && pnpm seed:demo --apply     # …and write it
+```
+
+`seed:demo` turns the description in `scripts/fixtures/portvilla-brief.ts` into a profile
+by running `GenerationService` and accepting the draft through `PATCH /profiles/me`, so it
+exercises the real generation path rather than writing documents of its own. It refuses to
+run with `NODE_ENV=production`, and without `--apply` it writes nothing at all.
+`--brief <path>` swaps the description; `--entity <type>` previews another entity type
+(dry run only). See `../../../docs/plan/phase-3/phase-3.md`.
 
 `docker-compose.yml` brings up the API plus MongoDB 7 with a healthcheck gate and a
 bind-mounted `./uploads`.
@@ -442,8 +494,8 @@ Original design called for AES-256 at rest. Not done.
 
 ### 🟡 `.env.example` has drifted
 Missing `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` (all `getOrThrow` —
-the app will not boot without them) and the whole `RESUME_LLM_*` group. A fresh
-clone following `.env.example` fails at startup.
+the app will not boot without them). A fresh clone following `.env.example` fails at
+startup. The LLM group was added on 2026-09-19 as `PLATFORM_LLM_*`.
 
 ### 🟡 Decision-doc statuses are stale
 Five docs are marked `Proposed` but are fully implemented in code: resume parsing,

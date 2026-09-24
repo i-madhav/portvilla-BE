@@ -26,6 +26,7 @@ import {
 } from '../../domain/agent-stack/catalog';
 import type {
   IProfile,
+  BriefSection,
   IdentitySection,
   WorkEntry,
   StageEntry,
@@ -221,8 +222,8 @@ class WorkSubDoc implements WorkEntry {
     description: string | null;
   }[];
 
-  @Prop({ type: String, default: null })
-  date!: string | null;
+  @Prop({ required: true })
+  date!: string;
 
   @Prop({ type: [StageSchema], default: [] })
   stages!: StageEntry[];
@@ -494,6 +495,18 @@ class SocialSubDoc implements SocialSection {
 }
 const SocialSchema = SchemaFactory.createForClass(SocialSubDoc);
 
+/**
+ * Owner-only working material. Nothing outward-facing reads it — see
+ * `BriefSection` — so it lives here as its own section rather than inside
+ * `identity`, where every field is public by default.
+ */
+@Schema({ _id: false })
+class BriefSubDoc implements BriefSection {
+  @Prop({ type: String, default: null })
+  text!: string | null;
+}
+const BriefSchema = SchemaFactory.createForClass(BriefSubDoc);
+
 @Schema({ _id: false })
 class AiSettingsSubDoc implements AiSettingsSection {
   @Prop({ required: true, enum: LlmProvider, default: LlmProvider.OPENAI })
@@ -718,6 +731,9 @@ class Profile implements IProfile {
     default: () => ({ links: [], email: null, phone: null, calendarUrl: null }),
   })
   social!: SocialSection;
+
+  @Prop({ type: BriefSchema, default: () => ({ text: null }) })
+  brief!: BriefSection;
 
   @Prop({
     type: AiSettingsSchema,

@@ -92,7 +92,7 @@ export function toWorks(dto?: WorkEntryDto[]): WorkEntryInput[] {
       code: c.code,
       description: c.description ?? null,
     })),
-    date: w.date ?? null,
+    date: w.date,
     stages: toStages(w.stages),
   }));
 }

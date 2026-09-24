@@ -23,7 +23,8 @@ export class JwtAuthGuard extends AuthGuard(JWT_STRATEGY) {
   ): TUser {
     if (err || !user) {
       const req = context.switchToHttp().getRequest<Request>();
-      const reason = (info as Error | undefined)?.message ?? err?.message ?? 'no user';
+      const reason =
+        (info as Error | undefined)?.message ?? err?.message ?? 'no user';
       this.logger.warn(`Rejected ${req.method} ${req.originalUrl}: ${reason}`);
     }
     return super.handleRequest(err, user, info, context, status);

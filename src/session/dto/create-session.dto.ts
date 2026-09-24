@@ -1,7 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsString, Matches, ValidateIf } from 'class-validator';
 
-import { AgentName, SessionStatus, SessionType } from '../session.interface';
+import {
+  AgentName,
+  SessionStatus,
+  SessionType,
+} from '../domain/session.interface';
 
 // ─── Request ──────────────────────────────────────────────────────────────────
 
