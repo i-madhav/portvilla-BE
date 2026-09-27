@@ -250,6 +250,9 @@ export const UploadProfileImageEndpoint = (): MethodDecorator =>
     Bearer(),
     ApiOperation({
       summary: 'Upload profile image (JPEG / PNG / WebP, max 2 MB)',
+      description:
+        'Deprecated: writes to local disk, which Cloud Run loses on every recycle. Upload through `POST /assets/uploads` → PUT → `POST /assets/uploads/:assetId/commit` (kind `profileImage`) and PATCH the returned `resolvedUrl` into `identity.primaryImage`. Removed with the media rollout phase 4.',
+      deprecated: true,
     }),
     ApiConsumes('multipart/form-data'),
     ApiBody({
@@ -349,5 +352,12 @@ export const GenerateProfileEndpoint = (): MethodDecorator =>
       description:
         'The model could not be reached, or could not read the description ' +
         'well enough to draft from it. Nothing was written; retry or type it by hand.',
+    }),
+    ApiResponse({
+      status: HttpStatus.GATEWAY_TIMEOUT,
+      description:
+        '`GENERATION_TIMEOUT`: the fact-sheet pass ran out of the generation\'s ' +
+        'time budget. Nothing was written; retrying as it is usually succeeds. ' +
+        'Sections that run out of time come back `failed` in a 200 instead.',
     }),
   );

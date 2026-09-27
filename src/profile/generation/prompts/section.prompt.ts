@@ -8,7 +8,7 @@ import type { EntityVocabulary } from '../vocabulary';
  *
  * Built once and handed to all ten calls, byte for byte identical, for two
  * reasons: it is most of the tokens, and an identical prefix is what a provider
- * can cache (Phase 9 turns that on and checks `cache_read_input_tokens`).
+ * can cache (`GenerationService` marks it cacheable and warms it once).
  * Passing the description and fact sheet separately to each builder would make
  * ten nearly-identical strings that no cache can match.
  */

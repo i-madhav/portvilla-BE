@@ -5,12 +5,12 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUrl,
 } from 'class-validator';
 
 import { TestimonialRelationship } from '../../domain/profile.interface';
 
 import { IsEntryKey } from '../entry-key.decorator';
+import { IsImageUrl } from '../image-url.decorator';
 
 export class TestimonialEntryDto {
   @IsEntryKey()
@@ -42,7 +42,7 @@ export class TestimonialEntryDto {
     example: 'https://example.com/avatar.jpg',
     nullable: true,
   })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   avatarUrl?: string | null;
 

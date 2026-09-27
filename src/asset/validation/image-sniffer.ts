@@ -1,69 +1,98 @@
-import { AssetKind, assetPolicies } from '../domain/asset.interface';
-import { fileTypeFromBuffer } from 'file-type';
-import sharp from 'sharp';
+import { imageSize } from 'image-size';
+import {
+  ActualFile,
+  AssetPolicy,
+  DeclaredFile,
+} from '../domain/asset.interface';
 
-interface IsAssetValidResponse{
-  reason: string,
-  isSafe: boolean
-}
+/** `image-size` reports a short format name; map the ones we accept to MIME types. Anything unmapped is rejected. */
+const MIME_BY_SNIFFED_TYPE: Readonly<Record<string, string>> = {
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+};
 
-export async function isAssetValid(kind:AssetKind ,file: Buffer , declared: {
-  filename: string;
-  contentType: string;
-  byteSize: number;
-  sha256: string;
-}): Promise<IsAssetValidResponse> {
-  
-  if (!file)
-    throw new Error(
-      'Unable to check the file , see if the file is really present or not',
-    );
+export type InspectionResult =
+  | { ok: true; actual: ActualFile }
+  | { ok: false; reason: string };
 
-  const allowedContent = {
-    allowedContentTypes: assetPolicies[kind].allowedContentTypes, 
-    allowedMaxSizeInBytes: assetPolicies[kind].maxSizeInBytes, 
-    allowedMaxPixels: assetPolicies[kind].maxPixels,
-    allowedMaxEdge: assetPolicies[kind].maxEdge
+/**
+ * Decides whether an uploaded object may be promoted, from evidence only.
+ *
+ * `header` is the first few hundred KiB of the object — never the whole file.
+ * The format comes from magic bytes and the dimensions from the file header,
+ * so a 60 KB PNG declaring 40000 × 40000 (a decompression bomb) is refused
+ * without ever being decoded. Pure, so the security core is unit-testable.
+ *
+ * Reasons are fixed strings: they are stored and returned to the client, so
+ * nothing the client sent is echoed back.
+ */
+export function inspectUpload(
+  policy: AssetPolicy,
+  declared: DeclaredFile,
+  storedByteSize: number,
+  header: Buffer,
+): InspectionResult {
+  // The signed Content-Length should make these impossible; they are checked
+  // anyway because the storage signature is the one control we cannot unit-test.
+  if (storedByteSize !== declared.byteSize) {
+    return reject('Stored size does not match the declared size.');
+  }
+  if (storedByteSize > policy.maxSizeInBytes) {
+    return reject('File is larger than this upload kind allows.');
   }
 
-  const { allowedContentTypes , allowedMaxEdge , allowedMaxPixels , allowedMaxSizeInBytes} = allowedContent;
- 
-  //Inspect the actual byte
-  const actualByte = await fileTypeFromBuffer(file.buffer); 
-  if (!actualByte) throw new Error("Unable to get real Byte");
-  
-  const actualMetadata = await sharp(file.buffer).metadata();
-  if (!actualMetadata) throw new Error("Unable to get actual Metadata");  
-
-  const actualMeta = {
-    height: actualMetadata?.height,
-    width: actualMetadata?.width,
-    byteSize: actualMetadata?.size
+  const sniffed = sniff(header);
+  if (!sniffed) {
+    return reject('File is not a readable JPEG, PNG or WebP image.');
   }
-  const actualExtension = actualByte?.mime ?? null; // image/jpeg
-  
-  if (!allowedContentTypes.includes(actualExtension)) return {
-    reason: "The actual asset content type doesn't match the type in the allowed list ",
-    isSafe:false
-  };
-
-  if (declared.contentType !== actualExtension) return {
-    reason: "The declared content type doesn't match the actual content type",
-    isSafe: false
+  if (!policy.allowedContentTypes.includes(sniffed.contentType)) {
+    return reject('File type is not allowed for this upload kind.');
+  }
+  if (sniffed.contentType !== declared.contentType) {
+    return reject('File content does not match the declared content type.');
   }
 
-  if (((actualMeta.height * actualMeta.width) > allowedMaxPixels) || Math.max(actualMeta.height, actualMeta.width) > allowedMaxEdge) return {
-    reason: "The actual dimension of the asset doesn't comply with the allowed limit",
-    isSafe:false
+  const { width, height } = sniffed;
+  if (width < 1 || height < 1) {
+    return reject('Image has no dimensions.');
   }
-
-  if (declared.byteSize > allowedMaxSizeInBytes || (actualMeta?.byteSize > allowedMaxSizeInBytes) ) return {
-    reason: "The actual byte size is greater than the allowed ones",
-    isSafe:false
+  if (policy.maxEdge !== null && Math.max(width, height) > policy.maxEdge) {
+    return reject('Image is wider or taller than this upload kind allows.');
+  }
+  if (policy.maxPixels !== null && width * height > policy.maxPixels) {
+    return reject('Image has more pixels than this upload kind allows.');
   }
 
   return {
-    reason: "This Asset is safe",
-    isSafe:true
+    ok: true,
+    actual: {
+      contentType: sniffed.contentType,
+      byteSize: storedByteSize,
+      width,
+      height,
+    },
+  };
+}
+
+function sniff(
+  header: Buffer,
+): { contentType: string; width: number; height: number } | null {
+  try {
+    const { type, width, height } = imageSize(header);
+    const contentType = type ? MIME_BY_SNIFFED_TYPE[type] : undefined;
+    // `imageSize` returns `undefined` dimensions for some partial inputs
+    // instead of throwing; treat that the same as unreadable.
+    if (!contentType || !Number.isInteger(width) || !Number.isInteger(height)) {
+      return null;
     }
+    return { contentType, width, height };
+  } catch {
+    // Unknown format, truncated header, or dimensions past the bytes we read.
+    return null;
+  }
+}
+
+function reject(reason: string): InspectionResult {
+  return { ok: false, reason };
 }

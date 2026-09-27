@@ -32,3 +32,18 @@ export const STAGE_SUMMARY_MAX_LENGTH = 200;
  * costs a real amount per generation and buries the facts that matter.
  */
 export const MAX_BRIEF_LENGTH = 8000;
+
+/**
+ * Upper bound on the regions an owner can draw on one screenshot. A screenshot
+ * with more things worth pointing at than this is several screenshots.
+ */
+export const MAX_HOTSPOTS_PER_SCREENSHOT = 8;
+
+/** A hotspot `label` names one thing on screen ("Export button"), no more. */
+export const HOTSPOT_LABEL_MAX_LENGTH = 40;
+
+/**
+ * A hotspot `note` is the owner's own line about the region, and the only thing
+ * the agent may say about it — so, like a stage summary, it fits one breath.
+ */
+export const HOTSPOT_NOTE_MAX_LENGTH = 280;

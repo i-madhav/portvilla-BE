@@ -25,6 +25,28 @@ function resolveLogLevels(): LogLevel[] {
   return process.env.NODE_ENV === 'development' ? verbose : quiet;
 }
 
+/**
+ * How many reverse proxies sit in front of the API, for Express's
+ * `trust proxy` — and so for `req.ip`, which is what every throttle keys on.
+ *
+ * Unset, Express trusts none and `req.ip` is the socket's peer. On Cloud Run
+ * that peer is Google's front end, so every visitor shares one address and a
+ * per-IP limit (`POST /profiles/me/generate`: five per ten minutes) becomes a
+ * limit for the whole platform. Cloud Run adds exactly one hop, and appends
+ * the client's address to `X-Forwarded-For` itself, so trusting one hop reads
+ * that address and ignores anything a client put in the header before it.
+ *
+ * Production defaults to that one hop; everywhere else defaults to none,
+ * because trusting a proxy that is not there lets any client choose its own
+ * IP. `TRUST_PROXY_HOPS` overrides both (e.g. `2` behind a load balancer in
+ * front of Cloud Run).
+ */
+function trustProxyHops(): number {
+  const explicit = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? '', 10);
+  if (Number.isInteger(explicit) && explicit >= 0) return explicit;
+  return process.env.NODE_ENV === 'production' ? 1 : 0;
+}
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: resolveLogLevels(),
@@ -39,6 +61,8 @@ async function bootstrap(): Promise<void> {
   app.useBodyParser('json', {
     type: ['application/json', 'application/webhook+json'],
   });
+
+  app.set('trust proxy', trustProxyHops());
 
   // ─── Static file serving ────────────────────────────────────────────────
   // Serves uploaded resumes and profile images at /uploads/*

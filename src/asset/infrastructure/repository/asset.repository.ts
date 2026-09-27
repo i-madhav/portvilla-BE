@@ -1,19 +1,25 @@
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
 import {
+  AssetUsage,
   CommitAssetData,
   CreateAssetData,
   IAssetRepository,
 } from '../../domain/asset-repository.interface';
-import { InjectModel } from '@nestjs/mongoose';
-import {
-  DB_MODEL_REGISTRY
-} from '../../../shared/mongoose/modelRegistry/mongoose.modelRegistry';
+import { DB_MODEL_REGISTRY } from '../../../shared/mongoose/modelRegistry/mongoose.modelRegistry';
 import {
   AssetDocument,
   AssetStatus,
+  IAsset,
   IAssetRecord,
 } from '../../domain/asset.interface';
-import { Model } from 'mongoose';
+
+interface UsageRow {
+  _id: AssetStatus;
+  count: number;
+  bytes: number;
+}
 
 @Injectable()
 export class AssetRepository implements IAssetRepository {
@@ -22,27 +28,11 @@ export class AssetRepository implements IAssetRepository {
     private readonly assetModel: Model<AssetDocument>,
   ) {}
 
-  private toRecord(doc: AssetDocument): IAssetRecord {
-    return {
-      assetId: doc.assetId,
-      kind: doc.kind,
-      status: doc.status,
-      resolvedUrl: doc.resolvedUrl ?? null,
-      declared: doc.declared,
-      actual: doc.actual ?? null,
-      userId: (doc.userId).toString(),
-      pendingExpiresAt: doc.pendingExpiresAt ?? null,
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt,
-    };
-  }
-
   async create(data: CreateAssetData): Promise<IAssetRecord> {
-    // Implementation for creating an asset record in the database
     const doc = await this.assetModel.create({
       assetId: data.assetId,
       kind: data.kind,
-      userId: data.userId,
+      userId: new Types.ObjectId(data.userId),
       declared: data.declared,
       actual: null,
       status: AssetStatus.PENDING,
@@ -53,29 +43,20 @@ export class AssetRepository implements IAssetRepository {
       rejectionReason: null,
       pendingExpiresAt: data.pendingExpiresAt,
     });
-
-    // confirm if the record was actually created and return the record
-    if (!doc) throw new Error('Failed to create asset record');
     return this.toRecord(doc);
   }
 
   async findAssetById(assetId: string): Promise<IAssetRecord | null> {
-    if (!assetId) throw new Error('assetId is required');
     const doc = await this.assetModel.findOne({ assetId });
-    if (!doc) return null;
-    return this.toRecord(doc);
+    return doc ? this.toRecord(doc) : null;
   }
 
   async markCommitted(
     assetId: string,
     data: CommitAssetData,
-  ): Promise<IAssetRecord> {
-    if (!assetId) {
-      throw new Error('assetId is required');
-    }
-
-    const updatedDoc = await this.assetModel.findOneAndUpdate(
-      { assetId },
+  ): Promise<IAssetRecord | null> {
+    const doc = await this.assetModel.findOneAndUpdate(
+      { assetId, status: AssetStatus.PENDING },
       {
         $set: {
           status: AssetStatus.COMMITTED,
@@ -87,35 +68,95 @@ export class AssetRepository implements IAssetRepository {
           pendingExpiresAt: null,
         },
       },
-      { new: true },
+      { returnDocument: 'after', runValidators: true },
     );
-
-    if (!updatedDoc) {
-      throw new Error('The document was not found');
-    }
-
-    return this.toRecord(updatedDoc);
+    return doc ? this.toRecord(doc) : null;
   }
 
-  async markRejected(assetId: string, reason: string): Promise<IAssetRecord> {
-    if (!assetId) throw new Error('assetId is required');
-
-    const doc = await this.assetModel.findOne({ assetId });
-    if (!doc) throw new Error('the document not found');
-    const updatedDoc = await this.assetModel.findByIdAndUpdate(
-      doc._id,
+  async markRejected(
+    assetId: string,
+    reason: string,
+  ): Promise<IAssetRecord | null> {
+    const doc = await this.assetModel.findOneAndUpdate(
+      { assetId, status: AssetStatus.PENDING },
+      // Clearing the expiry takes the row out of the TTL index, so the evidence
+      // (declared vs what the bytes really were) is kept.
       {
         $set: {
           status: AssetStatus.REJECTED,
           rejectionReason: reason,
+          pendingExpiresAt: null,
+        },
+      },
+      { returnDocument: 'after', runValidators: true },
+    );
+    return doc ? this.toRecord(doc) : null;
+  }
+
+  async usageFor(userId: string, now: Date): Promise<AssetUsage> {
+    const rows = await this.assetModel.aggregate<UsageRow>([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          $or: [
+            { status: AssetStatus.COMMITTED },
+            // The TTL monitor runs about once a minute, so expired rows can
+            // linger briefly; they no longer hold a capability.
+            { status: AssetStatus.PENDING, pendingExpiresAt: { $gt: now } },
+          ],
         },
       },
       {
-        new: true,
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          bytes: {
+            $sum: { $ifNull: ['$actual.byteSize', '$declared.byteSize'] },
+          },
+        },
       },
-    );
+    ]);
 
-    if (!updatedDoc) throw new Error('unable to edit the document');
-    return this.toRecord(updatedDoc);
+    const pending = rows.find((row) => row._id === AssetStatus.PENDING);
+    return {
+      pendingCount: pending?.count ?? 0,
+      totalCount: rows.reduce((sum, row) => sum + row.count, 0),
+      totalBytes: rows.reduce((sum, row) => sum + row.bytes, 0),
+    };
+  }
+
+  /**
+   * `toObject()` first, so nested sub-documents come out as plain data rather
+   * than live Mongoose objects (see the CLAUDE.md gotcha). Storage keys and
+   * `bucketRole` are deliberately not on the record.
+   */
+  private toRecord(doc: AssetDocument): IAssetRecord {
+    const asset = doc.toObject<IAsset & { _id: Types.ObjectId }>();
+    return {
+      id: asset._id.toString(),
+      assetId: asset.assetId,
+      kind: asset.kind,
+      status: asset.status,
+      resolvedUrl: asset.resolvedUrl ?? null,
+      declared: {
+        filename: asset.declared.filename,
+        contentType: asset.declared.contentType,
+        byteSize: asset.declared.byteSize,
+        sha256: asset.declared.sha256,
+      },
+      actual: asset.actual
+        ? {
+            contentType: asset.actual.contentType,
+            byteSize: asset.actual.byteSize,
+            width: asset.actual.width ?? null,
+            height: asset.actual.height ?? null,
+          }
+        : null,
+      userId: asset.userId.toString(),
+      pendingExpiresAt: asset.pendingExpiresAt ?? null,
+      rejectionReason: asset.rejectionReason ?? null,
+      createdAt: asset.createdAt,
+      updatedAt: asset.updatedAt,
+    };
   }
 }

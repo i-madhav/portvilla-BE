@@ -34,7 +34,8 @@ export class DraftPreviewDto {
     items: { type: 'object' },
     description:
       'The slide catalog this draft would produce, from the same projector ' +
-      '`GET /profiles/me/preview` and the agent context use.',
+      '`GET /profiles/me/preview` and the agent context use: each slide is ' +
+      '`{ id, template, title, payload, talkTrack, focus }`.',
   })
   slides!: Slide[];
 }
@@ -76,7 +77,10 @@ export class ProfileDraftResponseDto {
     type: 'object',
     additionalProperties: true,
     description:
-      'Token counts and wall-clock time. Counts only, never content.',
+      'Token counts and wall-clock time. Counts only, never content. The ' +
+      'three input counts are disjoint: `inputTokens` (full rate), ' +
+      '`cacheReadInputTokens` (the fan-out reading the shared prefix) and ' +
+      '`cacheWriteInputTokens` (the warm call writing it).',
   })
   usage!: GenerationUsage;
 

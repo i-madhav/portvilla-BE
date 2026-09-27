@@ -1,14 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 import { IsEntryKey } from '../entry-key.decorator';
+import { IsImageUrl } from '../image-url.decorator';
 
 export class MediaEntryDto {
   @IsEntryKey()
   key?: string;
 
   @ApiProperty({ example: 'https://example.com/photo.jpg' })
-  @IsUrl()
+  @IsImageUrl()
   url!: string;
 
   @ApiPropertyOptional({

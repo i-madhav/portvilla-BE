@@ -257,9 +257,16 @@ function printCatalog(title: string, slides: Slide[]): void {
 }
 
 function printUsage(result: GenerationResult): void {
-  const { calls, inputTokens, outputTokens, durationMs } = result.usage;
+  const {
+    calls,
+    inputTokens,
+    cacheReadInputTokens,
+    cacheWriteInputTokens,
+    outputTokens,
+    durationMs,
+  } = result.usage;
   heading(
-    `Usage — ${calls} call(s) · ${inputTokens} in · ${outputTokens} out · ${(durationMs / 1000).toFixed(1)} s`,
+    `Usage — ${calls} call(s) · ${inputTokens} in · ${cacheReadInputTokens} cache read · ${cacheWriteInputTokens} cache write · ${outputTokens} out · ${(durationMs / 1000).toFixed(1)} s`,
   );
 }
 

@@ -5,31 +5,131 @@ import {
   IsBoolean,
   IsEnum,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
   IsUrl,
+  Max,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 import { WorkType, WORK_STATUSES } from '../../domain/profile.interface';
 import {
+  HOTSPOT_LABEL_MAX_LENGTH,
+  HOTSPOT_NOTE_MAX_LENGTH,
+  MAX_HOTSPOTS_PER_SCREENSHOT,
   MAX_STAGES_PER_WORK,
   STAGE_SUMMARY_MAX_LENGTH,
 } from '../../domain/section-limits';
 
 import { IsEntryKey } from '../entry-key.decorator';
+import { FitsWithinImage } from '../fits-within-image.decorator';
+import { IsImageUrl } from '../image-url.decorator';
+
+/** Trims a string and leaves anything else for the type check to reject. */
+const trimmed = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' ? value.trim() : value;
+
+export class HotspotDto {
+  @IsEntryKey()
+  key?: string;
+
+  @ApiProperty({
+    example: 'Export button',
+    maxLength: HOTSPOT_LABEL_MAX_LENGTH,
+  })
+  @Transform(trimmed)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(HOTSPOT_LABEL_MAX_LENGTH)
+  label!: string;
+
+  @ApiProperty({
+    example: 'Exports the whole board as a CSV, filters included.',
+    maxLength: HOTSPOT_NOTE_MAX_LENGTH,
+    description:
+      'The line the owner wrote about this region, and the only thing the ' +
+      'agent may say about it. Agent-side only: never on a slide payload.',
+  })
+  @Transform(trimmed)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(HOTSPOT_NOTE_MAX_LENGTH)
+  note!: string;
+
+  @ApiProperty({
+    example: 62.5,
+    minimum: 0,
+    maximum: 100,
+    description: '% of the image width.',
+  })
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  x!: number;
+
+  @ApiProperty({
+    example: 8,
+    minimum: 0,
+    maximum: 100,
+    description: '% of the image height.',
+  })
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  y!: number;
+
+  @ApiProperty({
+    example: 12,
+    maximum: 100,
+    description: '% of the image width; > 0, and `x + w` ≤ 100.',
+  })
+  @IsNumber()
+  @IsPositive()
+  @FitsWithinImage('x')
+  w!: number;
+
+  @ApiProperty({
+    example: 6,
+    maximum: 100,
+    description: '% of the image height; > 0, and `y + h` ≤ 100.',
+  })
+  @IsNumber()
+  @IsPositive()
+  @FitsWithinImage('y')
+  h!: number;
+}
 
 export class ScreenshotDto {
+  @IsEntryKey()
+  key?: string;
+
   @ApiProperty({ example: 'https://example.com/screenshot.png' })
-  @IsUrl()
+  @IsImageUrl()
   url!: string;
 
   @ApiPropertyOptional({ nullable: true })
   @IsString()
   @IsOptional()
   caption?: string | null;
+
+  @ApiPropertyOptional({
+    type: [HotspotDto],
+    maxItems: MAX_HOTSPOTS_PER_SCREENSHOT,
+    description:
+      'Regions the agent can point at. Omitted means none. Replacing the ' +
+      'image should clear them: their geometry belongs to the old one.',
+  })
+  @IsArray()
+  @ArrayMaxSize(MAX_HOTSPOTS_PER_SCREENSHOT)
+  @ValidateNested({ each: true })
+  @Type(() => HotspotDto)
+  @IsOptional()
+  hotspots?: HotspotDto[];
 }
 
 export class CodeSnippetDto {
@@ -140,7 +240,7 @@ export class WorkEntryDto {
   repoUrl?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   coverImage?: string | null;
 

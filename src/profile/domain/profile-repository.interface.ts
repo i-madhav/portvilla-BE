@@ -3,6 +3,7 @@ import type {
   ProfileVisibility,
   IdentitySection,
   SocialSection,
+  BriefSection,
   AiSettingsSection,
   AgentPersonaSection,
   AgentStackSection,
@@ -44,6 +45,7 @@ export interface CreateProfileData {
   media: EntryInput<MediaEntry>[];
   content: EntryInput<ContentEntry>[];
   social: SocialSection;
+  brief: BriefSection;
   aiSettings: AiSettingsSection;
   agentPersona: AgentPersonaSection;
   agentStack: AgentStackSection;

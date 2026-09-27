@@ -30,6 +30,8 @@ import type {
   IdentitySection,
   WorkEntry,
   StageEntry,
+  ScreenshotEntry,
+  HotspotEntry,
   WorkStatus,
   TimelineEntry,
   CapabilityEntry,
@@ -113,12 +115,48 @@ class IdentitySubDoc implements IdentitySection {
 const IdentitySchema = SchemaFactory.createForClass(IdentitySubDoc);
 
 @Schema({ _id: false })
-class ScreenshotSubDoc {
+class HotspotSubDoc implements HotspotEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
+  @Prop({ required: true })
+  label!: string;
+
+  @Prop({ required: true })
+  note!: string;
+
+  @Prop({ required: true })
+  x!: number;
+
+  @Prop({ required: true })
+  y!: number;
+
+  @Prop({ required: true })
+  w!: number;
+
+  @Prop({ required: true })
+  h!: number;
+}
+const HotspotSchema = SchemaFactory.createForClass(HotspotSubDoc);
+
+/**
+ * `key` is required on every write like any other entry key. A screenshot
+ * stored before keys existed simply loads without one (and with `hotspots: []`,
+ * from the default); the repository keys it the next time its work is saved.
+ */
+@Schema({ _id: false })
+class ScreenshotSubDoc implements ScreenshotEntry {
+  @Prop(KEY_PROP)
+  key!: string;
+
   @Prop({ required: true })
   url!: string;
 
   @Prop({ type: String, default: null })
   caption!: string | null;
+
+  @Prop({ type: [HotspotSchema], default: [] })
+  hotspots!: HotspotEntry[];
 }
 const ScreenshotSchema = SchemaFactory.createForClass(ScreenshotSubDoc);
 
@@ -194,7 +232,7 @@ class WorkSubDoc implements WorkEntry {
   coverImage!: string | null;
 
   @Prop({ type: [ScreenshotSchema], default: [] })
-  screenshots!: { url: string; caption: string | null }[];
+  screenshots!: ScreenshotEntry[];
 
   @Prop({ type: [String], default: [] })
   technologies!: string[];

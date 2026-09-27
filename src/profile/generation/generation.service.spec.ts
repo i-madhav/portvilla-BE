@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 
 import type { IJsonCompleter, JsonCompletion } from '../../llm/llm.service';
-import type { LlmCompleteOptions } from '../../llm/i-llm-provider';
+import type { LlmCompleteOptions, LlmUsage } from '../../llm/i-llm-provider';
 import type { AiSettingsSection } from '../domain/profile.interface';
 import {
   AgentTechnicalDepth,
@@ -14,7 +14,11 @@ import {
 import type { IProfileRecord } from '../domain/profile.interface';
 import { defaultAgentStack } from '../domain/agent-stack/catalog';
 
-import { GenerationFailedError, GenerationService } from './generation.service';
+import {
+  GenerationFailedError,
+  GenerationService,
+  GenerationTimeoutError,
+} from './generation.service';
 import { GENERATED_SECTIONS } from './generation.types';
 import type { GeneratedSection } from './generation.types';
 
@@ -35,8 +39,19 @@ interface RecordedCall {
  * depends on `IJsonCompleter`, so this needs no network, no Nest testing module
  * and no cast.
  */
+const CALL_USAGE: LlmUsage = {
+  inputTokens: 100,
+  outputTokens: 50,
+  cacheReadInputTokens: 0,
+  cacheWriteInputTokens: 0,
+};
+
 class FakeCompleter implements IJsonCompleter {
   readonly calls: RecordedCall[] = [];
+  /** Warm calls, kept apart so `calls` stays "what was generated". */
+  readonly warms: RecordedCall[] = [];
+  /** Every request in the order it was sent, warm or not. */
+  readonly sequence: ('warm' | 'brief' | GeneratedSection)[] = [];
 
   constructor(
     private readonly script: {
@@ -44,8 +59,27 @@ class FakeCompleter implements IJsonCompleter {
       sections?: Partial<Record<GeneratedSection, unknown>>;
       /** Sections whose call rejects outright — a dropped socket, not a refusal. */
       rejects?: GeneratedSection[];
+      /** The brief runs out of time: the provider saw the deadline abort. */
+      briefTimesOut?: boolean;
+      /** What the warm call reports; `null` is a provider with nothing to warm. */
+      warm?: LlmUsage | null;
     },
   ) {}
+
+  warmPrefix(
+    system: string,
+    user: string,
+    _settings: AiSettingsSection,
+    options?: LlmCompleteOptions,
+  ): Promise<LlmUsage | null> {
+    this.warms.push({ system, user, options });
+    this.sequence.push('warm');
+    return Promise.resolve(
+      this.script.warm === undefined
+        ? { ...CALL_USAGE, inputTokens: 0, outputTokens: 0, cacheWriteInputTokens: 900 }
+        : this.script.warm,
+    );
+  }
 
   completeJson(
     system: string,
@@ -58,6 +92,11 @@ class FakeCompleter implements IJsonCompleter {
     const marker = user.match(/^# section: (\w+)$/m)?.[1] as
       | GeneratedSection
       | undefined;
+    this.sequence.push(marker ?? 'brief');
+
+    if (!marker && this.script.briefTimesOut) {
+      return Promise.resolve({ value: null, usage: null, failure: 'timeout' });
+    }
 
     if (marker && this.script.rejects?.includes(marker)) {
       return Promise.reject(new Error('socket hang up'));
@@ -74,7 +113,9 @@ class FakeCompleter implements IJsonCompleter {
 
     return Promise.resolve({
       value,
-      usage: { inputTokens: 100, outputTokens: 50 },
+      // The fan-out reads the prefix the warm call wrote.
+      usage: marker ? { ...CALL_USAGE, cacheReadInputTokens: 900 } : CALL_USAGE,
+      failure: value === null ? 'unparseable' : null,
     });
   }
 }
@@ -205,6 +246,56 @@ describe('GenerationService', () => {
       expect([...prefixes][0]).toContain(DESCRIPTION);
     });
 
+    it('marks the shared prefix cacheable on every fan-out call, and only there', async () => {
+      const fake = new FakeCompleter({ brief: aFactSheet() });
+      await serviceWith(fake).generate(aRecord(), DESCRIPTION);
+
+      // The brief's prompt is read once; caching it would buy a write nobody reads.
+      expect(fake.calls[0].options?.cacheSystemPrompt).toBeFalsy();
+      expect(
+        fake.calls.slice(1).every((c) => c.options?.cacheSystemPrompt === true),
+      ).toBe(true);
+    });
+
+    it('warms the prefix once, before the fan-out, with the fan-out\'s own options', async () => {
+      // Calls fired together cannot read what the others are still writing,
+      // so the write has to land first.
+      const fake = new FakeCompleter({
+        brief: aFactSheet(['capabilities', 'metrics', 'works']),
+      });
+      await serviceWith(fake).generate(aRecord(), DESCRIPTION);
+
+      expect(fake.sequence).toEqual([
+        'brief',
+        'warm',
+        // The section order is the catalog's, not the fact sheet's.
+        'capabilities',
+        'works',
+        'metrics',
+      ]);
+      expect(fake.warms).toHaveLength(1);
+      expect(fake.warms[0].system).toBe(fake.calls[1].system);
+      expect(fake.warms[0].options).toEqual(fake.calls[1].options);
+    });
+
+    it('skips the warm when only one section is planned', async () => {
+      const fake = new FakeCompleter({ brief: aFactSheet(['works']) });
+      await serviceWith(fake).generate(aRecord(), DESCRIPTION);
+
+      expect(fake.warms).toHaveLength(0);
+    });
+
+    it('gives every call the same deadline', async () => {
+      const fake = new FakeCompleter({ brief: aFactSheet() });
+      await serviceWith(fake).generate(aRecord(), DESCRIPTION);
+
+      const signals = new Set(
+        [...fake.calls, ...fake.warms].map((c) => c.options?.signal),
+      );
+      expect(signals.size).toBe(1);
+      expect([...signals][0]).toBeInstanceOf(AbortSignal);
+    });
+
     it('tells each generator what this entity kind means by that section', async () => {
       const fake = new FakeCompleter({ brief: aFactSheet(['capabilities']) });
       await serviceWith(fake).generate(aRecord(), DESCRIPTION);
@@ -281,6 +372,18 @@ describe('GenerationService', () => {
       expect(fake.calls).toHaveLength(1);
     });
 
+    it('reports a timeout as a timeout, not a failure', async () => {
+      // 504 and 502 tell the owner different things: "try again" versus
+      // "this description may not work".
+      const fake = new FakeCompleter({ briefTimesOut: true });
+      await expect(
+        serviceWith(fake).generate(aRecord(), DESCRIPTION),
+      ).rejects.toBeInstanceOf(GenerationTimeoutError);
+
+      expect(fake.calls).toHaveLength(1);
+      expect(fake.warms).toHaveLength(0);
+    });
+
     it('fails before spending anything when no platform key is set', async () => {
       const fake = new FakeCompleter({ brief: aFactSheet() });
       await expect(
@@ -302,10 +405,26 @@ describe('GenerationService', () => {
         DESCRIPTION,
       );
 
-      expect(usage.calls).toBe(3);
+      // brief + warm + two sections: the warm is a billed request too.
+      expect(usage.calls).toBe(4);
       expect(usage.inputTokens).toBe(300);
       expect(usage.outputTokens).toBe(150);
+      expect(usage.cacheWriteInputTokens).toBe(900);
+      expect(usage.cacheReadInputTokens).toBe(1800);
       expect(usage.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('still generates when the provider has nothing to warm', async () => {
+      const fake = new FakeCompleter({
+        brief: aFactSheet(['capabilities', 'metrics']),
+        sections: { metrics: { entries: [{ value: '120', label: 'Minutes' }] } },
+        warm: null,
+      });
+      const result = await serviceWith(fake).generate(aRecord(), DESCRIPTION);
+
+      expect(result.sections.metrics).toBe('generated');
+      expect(result.usage.calls).toBe(3);
+      expect(result.usage.cacheWriteInputTokens).toBe(0);
     });
 
     it('still counts a call that came back unusable', async () => {

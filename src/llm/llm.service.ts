@@ -2,22 +2,32 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AiSettingsSection } from '../profile/domain/profile.interface';
 import { RepoInsights } from '../parser/core/parsed-profile.types';
 import { createLlmProvider } from './llm-provider.factory';
+import { canWarmPrefix, LlmTimeoutError } from './i-llm-provider';
 import type { LlmCompleteOptions, LlmUsage } from './i-llm-provider';
 import type { ResumeExtraction } from './resume-extraction.types';
+
+/**
+ * Why a JSON completion produced no object. The caller needs exactly one of
+ * these distinctions — ran out of time, or did not — because the first is a
+ * 504 the owner should retry and the second a 502 they may need to type around.
+ * `unparseable` is kept apart from `error` for the log, not for the caller.
+ */
+export type JsonFailure = 'timeout' | 'error' | 'unparseable';
 
 /**
  * One JSON completion: whatever object the model returned, and what it cost.
  *
  * `value` is `null` for every failure — a provider error, a refusal, prose
- * instead of JSON — because every caller treats "nothing usable came back" the
- * same way. (`unknown` already admits `null`; the contract is in this sentence,
- * not in the type.) `usage` survives a parse failure on purpose: a call that
- * produced garbage still cost money, and a generation that silently
- * under-reports its spend is the one nobody catches.
+ * instead of JSON — and `failure` says which. (`unknown` already admits
+ * `null`; the contract is in this sentence, not in the type.) `usage` survives
+ * a parse failure on purpose: a call that produced garbage still cost money,
+ * and a generation that silently under-reports its spend is the one nobody
+ * catches.
  */
 export interface JsonCompletion {
   value: unknown;
   usage: LlmUsage | null;
+  failure: JsonFailure | null;
 }
 
 /**
@@ -35,6 +45,19 @@ export interface IJsonCompleter {
     settings: AiSettingsSection,
     options?: LlmCompleteOptions,
   ): Promise<JsonCompletion>;
+
+  /**
+   * Writes the shared prefix to the provider's cache before a fan-out, so the
+   * calls after it read it instead of each paying for it in full. Best effort:
+   * resolves `null` when the provider has nothing to warm or the warm failed,
+   * and never throws — a cold cache costs money, not correctness.
+   */
+  warmPrefix(
+    systemPrompt: string,
+    userPrompt: string,
+    settings: AiSettingsSection,
+    options?: LlmCompleteOptions,
+  ): Promise<LlmUsage | null>;
 }
 
 const SUMMARIZE_SYSTEM = `You are a technical writer helping a developer present their work.
@@ -82,13 +105,36 @@ export class LlmService implements IJsonCompleter {
         this.logger.warn(
           `completeJson: no JSON object in a ${text.length}-character response`,
         );
+        return { value, usage, failure: 'unparseable' };
       }
-      return { value, usage };
+      return { value, usage, failure: null };
     } catch (err) {
       this.logger.warn(
         `completeJson: completion failed — ${(err as Error).message}`,
       );
-      return { value: null, usage: null };
+      return {
+        value: null,
+        usage: null,
+        failure: err instanceof LlmTimeoutError ? 'timeout' : 'error',
+      };
+    }
+  }
+
+  async warmPrefix(
+    systemPrompt: string,
+    userPrompt: string,
+    settings: AiSettingsSection,
+    options?: LlmCompleteOptions,
+  ): Promise<LlmUsage | null> {
+    try {
+      const provider = createLlmProvider(settings);
+      if (!canWarmPrefix(provider)) return null;
+      return await provider.warm(systemPrompt, userPrompt, options);
+    } catch (err) {
+      this.logger.warn(
+        `warmPrefix: warm failed, fan-out runs uncached — ${(err as Error).message}`,
+      );
+      return null;
     }
   }
   async summarizeRepo(

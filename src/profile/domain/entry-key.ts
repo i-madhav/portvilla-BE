@@ -1,6 +1,11 @@
 import { randomInt } from 'crypto';
 
-import type { IProfile } from './profile.interface';
+import type {
+  IProfile,
+  ScreenshotEntry,
+  StageEntry,
+  WorkEntryInput,
+} from './profile.interface';
 
 /**
  * Stable identifiers for array-section entries.
@@ -16,7 +21,11 @@ import type { IProfile } from './profile.interface';
 
 export const ENTRY_KEY_LENGTH = 8;
 
-/** Lowercase alphanumerics only: readable in a slide id such as `work:a7f2c19d`. */
+/**
+ * Lowercase alphanumerics only: readable in a slide id such as `work:a7f2c19d`,
+ * and never a `.`, which joins a screenshot key to a hotspot key in a focus key
+ * (`shotkey1.hotkey01`).
+ */
 export const ENTRY_KEY_REGEX = /^[a-z0-9]{8}$/;
 
 export const ENTRY_KEY_MESSAGE =
@@ -25,10 +34,11 @@ export const ENTRY_KEY_MESSAGE =
 /**
  * The sections whose entries are keyed.
  *
- * Arrays nested *inside* an entry (`screenshots`, `codeSnippets`, `links`, …)
- * are not addressable on their own and are deliberately left unkeyed. The one
- * exception is `works[].stages[]`, which is keyed by the repository alongside
- * its parent work.
+ * Arrays nested *inside* an entry (`codeSnippets`, `links`, …) are not
+ * addressable on their own and are deliberately left unkeyed. The exceptions
+ * all live in a work and are keyed alongside it by `withWorkChildKeys`:
+ * `works[].stages[]`, each a slide of its own, and `works[].screenshots[]` with
+ * their `hotspots[]`, which the agent points at by key.
  */
 export const KEYED_ARRAY_SECTIONS = [
   'works',
@@ -75,6 +85,27 @@ export function withUniqueKeys<T extends KeyableEntry>(
     taken.add(key);
     return { ...entry, key };
   });
+}
+
+/**
+ * Keys everything nested inside one work: its stages, its screenshots, and each
+ * screenshot's hotspots. Keys are unique within their own array, the same rule
+ * as a section's. The work's own key is `withUniqueKeys` over the section.
+ */
+export function withWorkChildKeys<W extends WorkEntryInput>(
+  work: W,
+): Omit<W, 'stages' | 'screenshots'> & {
+  stages: StageEntry[];
+  screenshots: ScreenshotEntry[];
+} {
+  return {
+    ...work,
+    stages: withUniqueKeys(work.stages ?? []),
+    screenshots: withUniqueKeys(work.screenshots ?? []).map((shot) => ({
+      ...shot,
+      hotspots: withUniqueKeys(shot.hotspots ?? []),
+    })),
+  };
 }
 
 function isReusable(

@@ -43,7 +43,7 @@ Every feature module is four layers, in this order:
 ```
 
 Modules present: `auth`, `users`, `profile`, `session`, `parser`, `llm`, `mail`, `shared`,
-`agent` (empty — see Gotchas).
+`agent`, `asset` (direct-to-R2 uploads — see `src/asset/README.md`).
 
 ### Three type tiers
 
@@ -161,9 +161,14 @@ cover the pure and the security-sensitive — the slide projector
 (`agent/agent.service.spec.ts`), the service-token guard
 (`agent/guards/service-token.guard.spec.ts`), the owner-only `brief`
 (`profile/dto/profile-response.privacy.spec.ts`), the platform key selection
-(`llm/platform-llm.config.spec.ts`) and profile generation — both its pure assembly
+(`llm/platform-llm.config.spec.ts`), the Anthropic request shape — cache breakpoint,
+refusal fallbacks, the warm call (`llm/providers/anthropic.provider.spec.ts`) — and
+profile generation — both its pure assembly
 (`profile/generation/assemble.spec.ts`, where the grounding rules live) and its call
-pattern against a scripted fake (`profile/generation/generation.service.spec.ts`). All are constructed by hand with plain
+pattern against a scripted fake (`profile/generation/generation.service.spec.ts`: warm
+before fan-out, one shared deadline, timeout → `GenerationTimeoutError`). The
+asset upload pipeline (`asset/**/*.spec.ts`) covers the image sniffer, the upload-grant
+checks, the R2 signed-header set, and the commit state machine on real local storage. All are constructed by hand with plain
 fixtures, no Nest testing module. Anything touching Mongoose or DI is still verified by
 building and exercising endpoints, not by a suite.
 
@@ -181,8 +186,13 @@ building and exercising endpoints, not by a suite.
 - **Only the intro agent is deployed.** `portvilla-agent`'s Dockerfile runs
   `agent.main start`, and an `AgentServer` hosts exactly one agent — so the portfolio agent
   needs its own Deployment running `agent.portfolio start` before voice works in prod.
-- **Uploads are written to local disk** (`uploads/`) and are lost on every Cloud Run
-  instance recycle. R2 migration is proposed, not implemented.
+- **Two upload systems coexist.** The legacy `profile` endpoints still write to local disk
+  (`uploads/`, lost on every Cloud Run recycle); `POST /profiles/me/profile-image` is marked
+  deprecated and no FE code calls it. The FE uploads every image through the `asset` module
+  (intent → direct PUT → commit) since 2026-09-26. R2 is not provisioned. Image fields on the
+  profile validate with `@IsImageUrl()` (no TLD required), because local storage returns
+  `http://localhost:…` URLs. Without `R2_ACCOUNT_ID` the asset module uses `.local-storage/`
+  in development and answers 503 everywhere else.
 - **`.env.example` is stale** — missing the `LIVEKIT_*` group. LLM extraction is silently
   disabled wherever the platform keys are unset (`platformLlmSettings()` returns `null`),
   which is the documented degrade path, not a bug.
@@ -194,8 +204,16 @@ building and exercising endpoints, not by a suite.
 - **Two separate LLM key sets**: `PLATFORM_LLM_*` (platform-owned — resume parsing, and
   profile generation from 2026-09-19) vs `profile.aiSettings` (user-owned, for their
   agent). Don't conflate them. `src/llm/platform-llm.config.ts` is the only reader of the
-  platform set; the old `RESUME_LLM_*` names are a deprecated fallback with one release
-  left.
+  platform set; the old `RESUME_LLM_*` names are a deprecated fallback, kept until the
+  production secret is confirmed renamed (it is not visible from this box).
+- **Throttles key on `req.ip`, and `req.ip` depends on `trust proxy`.** `main.ts` sets it
+  from `TRUST_PROXY_HOPS` (unset: 1 in production, 0 elsewhere). Behind Cloud Run with 0,
+  every visitor is the Google front end and a "per-IP" limit is platform-wide; with a hop
+  trusted where no proxy exists, a client picks its own IP via `X-Forwarded-For`. To
+  reset the in-memory throttler during a local rerun, restart the API by PID.
+- **Generation has one 200 s deadline** (`GenerationService.BUDGET_MS`) shared by every
+  call, retries included; the fact sheet running out is `504 GENERATION_TIMEOUT`, a
+  section running out is a `failed` section in a 200. The FE waits 240 s.
 - **Directory typo `scehma/`** exists in `auth/infrastructure/` and `parser/infrastructure/`.
   Import paths depend on it — don't "fix" it in passing; it's a rename with a decision doc.
 - `profile` bypasses `DB_MODEL_REGISTRY` with its own `PROFILE_MODEL` constant.

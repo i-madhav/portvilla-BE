@@ -4,10 +4,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUrl,
 } from 'class-validator';
 
 import { EntityType } from '../../domain/profile.interface';
+import { IsImageUrl } from '../image-url.decorator';
 
 export class IdentityDto {
   @ApiProperty({ enum: EntityType, default: EntityType.INDIVIDUAL })
@@ -45,7 +45,7 @@ export class IdentityDto {
     example: 'https://example.com/avatar.jpg',
     nullable: true,
   })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   primaryImage?: string | null;
 
@@ -53,7 +53,7 @@ export class IdentityDto {
     example: 'https://example.com/cover.jpg',
     nullable: true,
   })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   coverImage?: string | null;
 
@@ -105,12 +105,12 @@ export class UpdateIdentityDto {
   about?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   primaryImage?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   coverImage?: string | null;
 

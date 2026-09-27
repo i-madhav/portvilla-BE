@@ -31,6 +31,7 @@ import { TeamMemberEntryDto } from './sections/team.dto';
 import { MediaEntryDto } from './sections/media.dto';
 import { ContentEntryDto } from './sections/content.dto';
 import { SocialDto } from './sections/social.dto';
+import { BriefDto } from './sections/brief.dto';
 import { AiSettingsDto } from './update-ai-settings.dto';
 
 export class CreateProfileDto {
@@ -148,6 +149,18 @@ export class CreateProfileDto {
   @Type(() => SocialDto)
   @IsOptional()
   social?: SocialDto;
+
+  @ApiPropertyOptional({
+    type: BriefDto,
+    description:
+      'The owner-only source description, saved with the profile so the ' +
+      'Describe step creates it in one request. Never returned to visitors or ' +
+      'to the voice agent.',
+  })
+  @ValidateNested()
+  @Type(() => BriefDto)
+  @IsOptional()
+  brief?: BriefDto;
 
   @ApiPropertyOptional({ type: AiSettingsDto })
   @ValidateNested()

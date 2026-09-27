@@ -12,6 +12,7 @@ import {
 import { ContentType } from '../../domain/profile.interface';
 
 import { IsEntryKey } from '../entry-key.decorator';
+import { IsImageUrl } from '../image-url.decorator';
 
 export class ContentEntryDto {
   @IsEntryKey()
@@ -42,7 +43,7 @@ export class ContentEntryDto {
     example: 'https://example.com/thumbnail.jpg',
     nullable: true,
   })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   thumbnailUrl?: string | null;
 

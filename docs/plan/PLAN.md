@@ -177,19 +177,32 @@ the generic `fetch()` and platform-specific methods off one object.
 
 ### `llm` — provider abstraction
 `ILlmProvider` is a one-method interface:
-`complete(system, user, options?: { maxTokens?, effort? }) => { text, usage }`.
-`usage` is the provider's own token counts, or `null` where it reports none — never an
-estimate, because a guessed token count ends up in a bill comparison.
+`complete(system, user, options?: { maxTokens?, effort?, cacheSystemPrompt?, signal? }) => { text, usage }`.
+`usage` is the provider's own token counts — `inputTokens`, `outputTokens`,
+`cacheReadInputTokens`, `cacheWriteInputTokens`, the three input counts disjoint as they
+are billed — or `null` where it reports none; never an estimate, because a guessed token
+count ends up in a bill comparison. A deadline (`signal`) or a per-request timeout
+surfaces as the provider-neutral `LlmTimeoutError`, whichever SDK was running.
 `createLlmProvider(settings)` switches on `LlmProvider` and returns an OpenAI-compat,
 Anthropic, or Ollama provider. Groq/DeepSeek/Custom all reuse the OpenAI-compatible
-client with a different `baseURL`. The Anthropic provider defaults to `claude-opus-5`,
-takes `max_tokens` from the caller (4096 when unset), uses a 120 s per-request timeout,
-checks `stop_reason` before reading content, and joins every text block rather than
-reading `content[0]` — on a thinking model the first block is not the answer.
+client with a different `baseURL`; `OllamaProvider` is that same class with a local
+default URL. The Anthropic provider (`@anthropic-ai/sdk` 0.128) defaults to
+`claude-opus-5`, takes `max_tokens` from the caller (4096 when unset), uses a 120 s
+per-request timeout, checks `stop_reason` before reading content, and joins every text
+block rather than reading `content[0]` — on a thinking model the first block is not the
+answer. It builds every request in one pure function (`buildMessageRequest`): the system
+prompt carries a cache breakpoint when the caller asks, and `claude-opus-5` / `-5-5` /
+`fable-5` / `fable-5-1` opt into server-side refusal fallbacks (`fallbacks: "default"`,
+beta `server-side-fallback-2026-07-01`) — a policy decline is re-run on Anthropic's
+fallback model inside the same call. It also implements the separate `IPrefixWarmer`
+(`warm()`: the same request with `max_tokens: 0`, which writes the cache and generates
+nothing).
 
 `LlmService` adds `completeJson(system, user, settings, options?)` on top: one prompt in,
-one parsed JSON object out, `null` on any failure. It never throws — every caller treats
-"nothing usable came back" the same way. The defensive parse (first `{` to last `}`,
+one parsed JSON object out, `null` on any failure plus a `failure` reason
+(`timeout | error | unparseable`). It never throws — every caller treats "nothing usable
+came back" the same way. `warmPrefix(...)` is best effort and also never throws; it is a
+no-op for providers with nothing to warm. The defensive parse (first `{` to last `}`,
 fences tolerated) is shared with résumé extraction.
 
 `platform-llm.config.ts` holds `platformLlmSettings(config)`: the single reader of the
@@ -222,6 +235,15 @@ Only `public` profiles resolve — `private` and `protected` both 404.
 
 ---
 
+### `asset` — uploads to object storage
+Direct-to-storage image uploads (rollout phase 1, 2026-09-26): `POST /assets/uploads`
+issues an upload intent, the browser PUTs the bytes straight to storage (never through
+this API, never with the user's `Authorization` header), and
+`POST /assets/uploads/:assetId/commit` sniffs the bytes and returns the `resolvedUrl` a
+profile field stores. Local disk (`.local-storage/`) in development; R2 once
+provisioned (not yet). See `src/asset/README.md` and
+`docs/decisions/2026-08-26-media-uploads-r2.md`.
+
 ## 5. Data model
 
 Four collections. All Mongoose, `{ timestamps: true }`.
@@ -246,8 +268,9 @@ userId (unique) · username (unique, lowercase) · visibility · protectedPasswo
 identity      { entityType, name, tagline, bio, about, primaryImage, coverImage,
                 location, foundedOrBorn, industry, availability,
                 resume: { url, parsedText } }
-works[]       project | product | case_study | artwork | research — with screenshots,
-              codeSnippets, technologies, highlights, status, featured
+works[]       project | product | case_study | artwork | research — with stages[],
+              screenshots[] { key, url, caption, hotspots[] }, codeSnippets,
+              technologies, highlights, status, featured
 timeline[]    career | education | certification | award | milestone | product_launch
 capabilities[]  skills, with proficiency + yearsOfExperience
 offerings[]   services/products with price, features, CTA
@@ -261,6 +284,8 @@ brief         { text }        ← the owner's source description (<= 8000 chars)
                                 profile generation reads. Owner-only: present in
                                 ProfileDataResponseDto and nowhere else — not in the public
                                 profile, the agent context or the slide preview.
+                                Writable on create (`POST /profiles`, the onboarding
+                                Describe step) and on `PATCH /profiles/me`.
 aiSettings    { provider, apiKey, model, baseUrl }        ← never exposed publicly
 agentPersona  { agentName, tone, verbosity, technicalDepth }         ← how it speaks (prompt)
 agentStack    { pipeline, language{primary,listen,reply}, stt{model,keyterms},
@@ -272,6 +297,19 @@ agentStack    { pipeline, language{primary,listen,reply}, stt{model,keyterms},
 
 Read the sections not as "resume fields" but as **presentation blocks the frontend
 renders and the agent narrates.**
+
+**Pointing (2026-09-27).** `works[].screenshots[]` are keyed by the repository like
+`stages[]` (`withWorkChildKeys` in `profile/domain/entry-key.ts`), and each carries up to 8
+owner-drawn `hotspots[] { key, label ≤ 40, note ≤ 280, x, y, w, h }`, where the geometry is
+percentages of the image with `x + w ≤ 100` and `y + h ≤ 100`. Screenshots saved before
+then load with no `key` and `hotspots: []`, and get keys on the next save of their work.
+Every projected slide carries `focus: { key, label, note }[]` beside `talkTrack`: the
+things on it the agent can point at. Capabilities and timeline list their entries, a work
+lists its keyed screenshots and then `shotKey.hotspotKey` for each hotspot, and every
+other template has `[]`. `note` is agent-side only. Slide payloads carry hotspot geometry
+and labels but never the note, and the public profile maps works field by field to leave
+it out. Only `GET /profiles/me` returns it, for the editor. Design:
+[`docs/plan/plan.md` §15](../../../docs/plan/plan.md).
 
 ### `sessions`
 `type`, `status`, `roomName`, `participantIdentity`, `participantToken`, `agentName`,
@@ -311,9 +349,11 @@ Global prefix `/api/v1`. Swagger UI at `/docs`. Static uploads at `/uploads/*`.
 | GET | `/profiles/public/:username` | — | 30/min |
 | POST | `/profiles/public/:username/unlock` | — | **5/min** (brute-force surface) |
 | GET | `/profiles/me` | JWT | default |
+| GET | `/profiles/me/preview` | JWT + Owner | default — the slide catalog, same projector the agent reads |
 | PATCH | `/profiles/me` | JWT + Owner | default |
+| POST | `/profiles/me/generate` | JWT + Owner | **5 / 10 min per client IP** — see §8 |
 | POST | `/profiles/me/resume` | JWT + Owner | multipart `resume`, PDF, 5 MB |
-| POST | `/profiles/me/profile-image` | JWT + Owner | multipart `profileImage`, JPEG/PNG/WebP, 2 MB |
+| POST | `/profiles/me/profile-image` | JWT + Owner | **deprecated** — multipart, local disk; nothing in the FE calls it (uploads go through `asset`) |
 | DELETE | `/profiles/me` | JWT | 204 |
 
 Route ordering matters: `username-available` and the `public/` prefix are declared
@@ -322,6 +362,20 @@ so `:username` can never shadow them.
 `PATCH /profiles/me` is deliberately **one endpoint for every section** (see
 `2026-06-02-collapse-patch-endpoints.md`). Array sections are **replace-whole-array**,
 not merge. Scalar identity fields are merged key-by-key via dotted `$set` paths.
+
+Every throttle keys on `req.ip`, so it is only per-client if Express trusts the proxy in
+front of it: `main.ts` sets `trust proxy` from `TRUST_PROXY_HOPS` (default 1 in
+production, where Cloud Run adds one hop; 0 elsewhere). Without it every visitor shares
+the Google front end's address and a per-IP limit is a platform-wide one. The throttler's
+store is in memory, so on Cloud Run a limit holds per instance.
+
+### Asset — `/assets`
+| Method | Path | Guard | Notes |
+|---|---|---|---|
+| POST | `/assets/uploads` | JWT | Upload intent: `{ kind, files: [{ filename, contentType, byteSize, sha256 }] }` → one signed PUT per file |
+| POST | `/assets/uploads/:assetId/commit` | JWT | Sniffs the object, returns `resolvedUrl`; 409 while storage catches up |
+| PUT | `/assets/local/uploads/:token` | token in path | Development storage only |
+| GET | `/assets/local/objects/:assetId` | — | Development storage only |
 
 ### Parser — `/parser`
 | Method | Path | Guard |
@@ -385,13 +439,25 @@ knowledge section fans out from it in parallel, then a pure pass validates every
 against the same section DTOs `PATCH /profiles/me` uses, checks each URL, quote, number
 and date against the description, caps, dedupes and drops keys. It **writes nothing** —
 the response is a `PATCH` body the owner accepts. A failed section is a warning and an
-empty section; only a failed fact sheet fails the request, as `502 GENERATION_FAILED`.
-Throttled to 5 per 10 minutes per IP.
+empty section; only a failed fact sheet fails the request, as `502 GENERATION_FAILED`,
+or — when it ran out of time — `504 GENERATION_TIMEOUT`. The whole workflow shares one
+200 s deadline (`GenerationService.BUDGET_MS`, under the FE's 240 s request timeout), so
+SDK retries cannot stretch it; a section that runs out of time is `failed` in a 200.
+Throttled to 5 per 10 minutes per client IP (§6 on `trust proxy`).
+
+Cost: the fan-out calls share one byte-identical system prompt (description + fact
+sheet), marked cacheable. Calls fired together cannot read a cache entry another is still
+writing, so one warm call (`max_tokens: 0`) writes it first and the fan-out reads it; with
+a single planned section there is no warm. Each generation logs its counts only —
+`calls, in, cacheRead, cacheWrite, out, ms` — and returns them as `usage`.
 
 The platform key set was renamed from `RESUME_LLM_*` to `PLATFORM_LLM_*` on 2026-09-19,
 when a second platform-funded feature (profile generation) arrived and a name meaning
 "résumé" stopped describing it. The old names are still read as a fallback and warn once;
-they are removed after one release.
+they are removed after one release. As of 2026-09-27 no environment this repo can see
+uses them (the local `.env` and `docker-compose.yml` have neither group); the production
+secret is not visible from here, so the fallback stays until its owner confirms the rename
+(`docs/plan/phase-9/phase-9.md`).
 
 `aiSettings.apiKey` is stored **in plaintext** today. Encryption at rest was in the
 original design and has not been implemented.
@@ -408,6 +474,7 @@ then `.env`.
 | Variable | Required | Read by |
 |---|---|---|
 | `PORT`, `NODE_ENV` | — | `main.ts` |
+| `TRUST_PROXY_HOPS` | optional | `main.ts` — Express `trust proxy`; unset = 1 in production, 0 elsewhere (§6) |
 | `CORS_ORIGINS` | prod only | `main.ts` — dev allows `*`, prod requires an explicit comma-separated list |
 | `MONGODB_URI` | **yes** | `MongooseDatabaseModule` (`getOrThrow`) |
 | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | **yes** | `AuthService`, `JwtStrategy` |
@@ -456,7 +523,10 @@ bind-mounted `./uploads`.
 
 GitHub Actions on push to `main` → `gcloud run deploy portvilla-be --source .`,
 512 Mi / 1 CPU, `--allow-unauthenticated`, env injected via
-`--set-secrets=/etc/secrets/portvilla-be/.env=…`.
+`--set-secrets=/etc/secrets/portvilla-be/.env=…`. Cloud Run's default request timeout
+(300 s) is above generation's 200 s budget, so the API answers before the platform
+drops the connection. The image sets `NODE_ENV=production`, which is what turns on the
+one trusted proxy hop.
 
 ---
 
@@ -482,12 +552,14 @@ The worker registers `@server.rtc_session(agent_name="portvilla-portfolio")`.
 LiveKit will never dispatch the portfolio agent. (`WELCOME = 'portvilla-intro'`
 matches `main.py` correctly.)
 
-### 🔴 Uploads are lost on Cloud Run
-`upload.config.ts` writes to `process.cwd()/uploads` on a container whose filesystem
-is per-instance and in-memory. Files vanish on deploy or scale-to-zero, and with
-`maxScale 20` a file written by one instance 404s from another. Also consumes the
-512 Mi allocation. `docs/decisions/2026-08-26-media-uploads-r2.md` proposes a
-direct-to-R2 pipeline; it is **Proposed, unimplemented, and untracked in git**.
+### 🟡 Uploads are lost on Cloud Run — until R2 is provisioned
+The legacy `upload.config.ts` path (résumé PDFs, the deprecated profile-image endpoint)
+writes to `process.cwd()/uploads` on a container whose filesystem is per-instance and
+in-memory; files vanish on deploy or scale-to-zero. Images no longer take that path: the
+`asset` module (rollout phase 1, 2026-09-26) uploads direct to storage and every image
+field in the FE uses it. But R2 is **not provisioned**, so outside development the asset
+module answers 503 ("Uploads aren't available on this server yet") and the slides show
+their generated art. See `docs/decisions/2026-08-26-media-uploads-r2.md` for rollouts 2–5.
 
 ### 🟡 `aiSettings.apiKey` stored in plaintext
 Original design called for AES-256 at rest. Not done.
@@ -509,7 +581,9 @@ architecture. Statuses should be flipped to `Accepted`.
 - `shared/configuration/*.config.ts` `registerAs` factories are never registered.
 - `TransactionRunner` is written but unused.
 - `shared/queue/*` — empty stub files.
-- No tests. `test/` exists, `jest` is configured, zero `.spec.ts` files in `src/`.
+- Tests are thin by design (14 suites, 2026-09-27): the pure and the security-sensitive
+  only — see `CLAUDE.md` for the inventory. Anything touching Mongoose or DI is verified
+  by exercising endpoints.
 - Typo in a directory name that appears in real import paths:
   `auth/infrastructure/scehma/` and `parser/infrastructure/scehma/` (sic).
 - `GET /` still returns the scaffolded hello string; there is no real health check.

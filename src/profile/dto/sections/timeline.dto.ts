@@ -11,6 +11,7 @@ import {
 import { TimelineCategory } from '../../domain/profile.interface';
 
 import { IsEntryKey } from '../entry-key.decorator';
+import { IsImageUrl } from '../image-url.decorator';
 
 export class TimelineEntryDto {
   @IsEntryKey()
@@ -44,7 +45,7 @@ export class TimelineEntryDto {
     example: 'https://example.com/logo.png',
     nullable: true,
   })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   organizationLogoUrl?: string | null;
 

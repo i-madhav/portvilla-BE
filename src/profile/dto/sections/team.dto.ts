@@ -10,6 +10,7 @@ import {
 import { Type } from 'class-transformer';
 
 import { IsEntryKey } from '../entry-key.decorator';
+import { IsImageUrl } from '../image-url.decorator';
 
 export class TeamLinkDto {
   @ApiProperty({ example: 'github' })
@@ -48,7 +49,7 @@ export class TeamMemberEntryDto {
     example: 'https://example.com/avatar.jpg',
     nullable: true,
   })
-  @IsUrl()
+  @IsImageUrl()
   @IsOptional()
   avatarUrl?: string | null;
 

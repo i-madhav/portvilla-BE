@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  GatewayTimeoutException,
   Body,
   Controller,
   Delete,
@@ -63,6 +64,7 @@ import { ProfileDraftResponseDto } from './dto/profile-draft-response.dto';
 import { GenerateProfileDto } from './dto/generate-profile.dto';
 import {
   GenerationFailedError,
+  GenerationTimeoutError,
   GenerationService,
 } from './generation/generation.service';
 
@@ -206,6 +208,12 @@ export class ProfileController {
       // Mapped here rather than thrown as an HTTP error from the service: the
       // workflow knows it failed, the controller knows what that means over
       // HTTP. A failed *section* never reaches this — it is a warning.
+      if (err instanceof GenerationTimeoutError) {
+        throw new GatewayTimeoutException({
+          code: 'GENERATION_TIMEOUT',
+          message: err.message,
+        });
+      }
       if (err instanceof GenerationFailedError) {
         throw new BadGatewayException({
           code: 'GENERATION_FAILED',

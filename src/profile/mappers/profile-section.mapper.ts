@@ -8,6 +8,7 @@ import {
 import type {
   AgentPersonaSection,
   AiSettingsSection,
+  BriefSection,
   CapabilityEntry,
   ContentEntry,
   EntryInput,
@@ -35,6 +36,7 @@ import { TestimonialEntryDto } from '../dto/sections/testimonials.dto';
 import { TimelineEntryDto } from '../dto/sections/timeline.dto';
 import { StageEntryDto, WorkEntryDto } from '../dto/sections/works.dto';
 import { AiSettingsDto } from '../dto/update-ai-settings.dto';
+import { BriefDto } from '../dto/sections/brief.dto';
 
 /**
  * Wire shape → stored shape, for every profile section.
@@ -79,8 +81,18 @@ export function toWorks(dto?: WorkEntryDto[]): WorkEntryInput[] {
     repoUrl: w.repoUrl ?? null,
     coverImage: w.coverImage ?? null,
     screenshots: (w.screenshots ?? []).map((s) => ({
+      key: s.key,
       url: s.url,
       caption: s.caption ?? null,
+      hotspots: (s.hotspots ?? []).map((h) => ({
+        key: h.key,
+        label: h.label,
+        note: h.note,
+        x: h.x,
+        y: h.y,
+        w: h.w,
+        h: h.h,
+      })),
     })),
     technologies: w.technologies ?? [],
     tags: w.tags ?? [],
@@ -237,6 +249,10 @@ export function toSocialSection(dto?: SocialDto): SocialSection {
     phone: dto?.phone ?? null,
     calendarUrl: dto?.calendarUrl ?? null,
   };
+}
+
+export function toBriefSection(dto?: BriefDto): BriefSection {
+  return { text: dto?.text ?? null };
 }
 
 export function toAiSettings(dto?: AiSettingsDto): AiSettingsSection {

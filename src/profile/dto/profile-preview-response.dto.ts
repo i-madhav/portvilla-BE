@@ -26,9 +26,9 @@ export class ProfilePreviewPersonaDto {
 /**
  * The owner-facing preview: exactly the slide catalog the agent will narrate,
  * built by the same `projectSlides()` the agent's context uses. Nothing here
- * is a second, hand-maintained approximation — a section with nothing in it,
- * or `media`, which has no template until the asset pipeline lands, simply
- * produces none, same as it would for a visitor.
+ * is a second, hand-maintained approximation — a section with nothing in it
+ * (or `media` holding only videos) simply produces no slide, same as it would
+ * for a visitor.
  */
 export class ProfilePreviewResponseDto {
   @ApiProperty({ example: 'jane-doe' })
@@ -42,7 +42,8 @@ export class ProfilePreviewResponseDto {
     items: { type: 'object' },
     description:
       'The ordered slide catalog, identical in shape and content to what ' +
-      '`GET /agent/context/:username` serves the voice worker.',
+      '`GET /agent/context/:username` serves the voice worker: each slide is ' +
+      '`{ id, template, title, payload, talkTrack, focus }`.',
   })
   slides!: Slide[];
 

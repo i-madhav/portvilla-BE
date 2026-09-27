@@ -37,9 +37,11 @@ export enum SlideTemplate {
   TESTIMONIALS = 'testimonials',
   TEAM = 'team',
   CONTENT = 'content',
-  // `media` is deliberately absent. The asset pipeline has not landed, so there
-  // is no media on any profile to project — a template for it would be a screen
-  // that can only ever be empty.
+  /**
+   * Added 2026-09-26, once the asset pipeline could put real images on a
+   * profile. Images only — see `MediaPayload`.
+   */
+  MEDIA = 'media',
 }
 
 /**
@@ -52,6 +54,21 @@ export enum SlideTemplate {
 export interface TalkTrack {
   summary: string;
   detail: string | null;
+}
+
+/**
+ * One thing on a slide the agent can point at: a capability, a timeline entry,
+ * a screenshot, or a region the owner drew on one.
+ *
+ * `key` is what the agent passes to `show_slide` and what the stage matches
+ * against `data-focus-key`: an entry key, or `shotKey.hotspotKey` for a
+ * hotspot. `note` is agent-side only, like `talkTrack` — the owner's own line
+ * about a hotspot, and null for everything else.
+ */
+export interface FocusTarget {
+  key: string;
+  label: string;
+  note: string | null;
 }
 
 // ─── Payloads ─────────────────────────────────────────────────────────────────
@@ -83,7 +100,25 @@ export interface WorkPayload {
   url: string | null;
   repoUrl: string | null;
   coverImage: string | null;
-  screenshots: { url: string; caption: string | null }[];
+  /**
+   * `key` is null on a screenshot stored before screenshots were keyed; it
+   * still shows, but it has no entry in `focus`. Hotspots carry what drawing
+   * a ring needs — geometry and a label — and never the owner's `note`, which
+   * is the agent's line, not the visitor's.
+   */
+  screenshots: {
+    key: string | null;
+    url: string;
+    caption: string | null;
+    hotspots: {
+      key: string;
+      label: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }[];
+  }[];
   technologies: string[];
   tags: string[];
   status: WorkStatus;
@@ -230,6 +265,19 @@ export interface ContentPayload {
   // wherever it was published.
 }
 
+export interface MediaPayload {
+  items: {
+    key: string;
+    /** A committed asset's delivery URL, or a link the owner pasted. */
+    url: string;
+    caption: string | null;
+    category: string | null;
+  }[];
+  // `type` is deliberately absent: only image entries are projected, so every
+  // item here is an image. A video URL has no player on the slide and no
+  // upload kind behind it — showing it would be a broken frame.
+}
+
 // ─── Slide ────────────────────────────────────────────────────────────────────
 
 interface SlideOf<T extends SlideTemplate, P> {
@@ -243,6 +291,12 @@ interface SlideOf<T extends SlideTemplate, P> {
   title: string;
   payload: P;
   talkTrack: TalkTrack;
+  /**
+   * What on this slide the agent can point at. Beside `payload` rather than in
+   * it, because notes must never reach the screen. Empty for a template with
+   * nothing to point at.
+   */
+  focus: FocusTarget[];
 }
 
 /**
@@ -261,7 +315,8 @@ export type Slide =
   | SlideOf<SlideTemplate.METRICS, MetricsPayload>
   | SlideOf<SlideTemplate.TESTIMONIALS, TestimonialsPayload>
   | SlideOf<SlideTemplate.TEAM, TeamPayload>
-  | SlideOf<SlideTemplate.CONTENT, ContentPayload>;
+  | SlideOf<SlideTemplate.CONTENT, ContentPayload>
+  | SlideOf<SlideTemplate.MEDIA, MediaPayload>;
 
 export type SlidePayload = Slide['payload'];
 
@@ -277,7 +332,17 @@ export const SlideId = {
   testimonials: 'testimonials',
   team: 'team',
   content: 'content',
+  media: 'media',
   work: (workKey: string) => `work:${workKey}`,
   workStage: (workKey: string, stageKey: string) =>
     `work:${workKey}:stage:${stageKey}`,
+} as const;
+
+/**
+ * Focus keys are entry keys, except a hotspot's, which names its screenshot
+ * too. Entry keys never contain a `.`, so the join cannot collide.
+ */
+export const FocusKey = {
+  hotspot: (screenshotKey: string, hotspotKey: string) =>
+    `${screenshotKey}.${hotspotKey}`,
 } as const;

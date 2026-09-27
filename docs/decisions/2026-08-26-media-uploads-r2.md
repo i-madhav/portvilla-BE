@@ -1,7 +1,33 @@
 # Media Uploads — Direct-to-R2 Pipeline with Quarantine, Validation, and Worker-Fronted Delivery
 
 ## Status
-Proposed
+Accepted. Rollout phase 1 (§15) was implemented on 2026-09-26 in `src/asset/`. Rollout phase 3's
+frontend work landed the same day as `docs/plan` Phase 10 (workspace root). That covers `useAssetUpload`,
+all nine image fields wired, the unused legacy FE call removed, and `POST /profiles/me/profile-image`
+marked deprecated. It is verified against local storage only, because phases 0 and 2 (buckets, the
+Worker) are not started. Phases 4–5 are not started either. See *Implementation notes* below for where the code differs from this doc.
+
+### Implementation notes (2026-09-26)
+
+Phase 1 shipped with these deliberate differences. Each one is recorded here so nobody
+"fixes" the code back to the original text:
+
+| Doc says | Code does | Why |
+|---|---|---|
+| `src/media/`, routes `/media/...` | `src/asset/`, routes `/assets/uploads` and `/assets/uploads/:assetId/commit` | The module was renamed while it was being built; the routes follow the module name |
+| `JwtAuthGuard` + `ProfileOwnerGuard` | `JwtAuthGuard` only; ownership is checked per asset in the service | Assets belong to a user, not a profile, so an avatar can be uploaded during onboarding |
+| §7 step 6: delete quarantine, *then* write the DB | copy → write DB → delete quarantine (best-effort) | This order recovers from a crash at any step on its own. The doc's order could lose an object that has no record |
+| Object key `a/{assetId}/o.{ext}` | `a/{assetId}/o` | The content type is stored as object metadata, so the Worker can map `assetId` to a key without a DB lookup |
+| Range-GET the first 64 KiB | the first 512 KiB | Phone JPEGs often place the SOF marker behind EXIF/ICC blocks larger than 64 KiB. This is still bounded, and still never the whole file |
+| `image/gif` (it was in the code's policies) | removed; jpeg/png/webp only, as §4 lists | Animated frames multiply decode cost beyond what `maxPixels` measures |
+| `LocalDiskStorage` selected whenever `R2_ACCOUNT_ID` is absent | only in `NODE_ENV` development/test; elsewhere the endpoints return 503 | Falling back to disk in production would recreate defect #1 |
+| `deliveryUrl` | stored as `resolvedUrl` (the `l` variant) | Field name chosen during the build |
+| Quota "re-checked at commit against actual bytes" | not re-checked | Commit already rejects any size that differs from the declared one, so the re-check would always pass |
+| `MEDIA_MAX_*`, `R2_PRESIGN_TTL_SECONDS`, `R2_BUCKET_PRIVATE` env | constants in `ASSET_LIMITS`; no private bucket yet | YAGNI until someone needs to tune them per environment, or the `RESUME` kind lands |
+
+Also not built yet: the `RESUME` kind, `visibility`, `ownerProfileId`, the `committedAt`, `linkedAt`,
+`orphanedAt` and `deletedAt` timestamps, and the `LINKED`, `ORPHANED` and `DELETED` statuses. They
+arrive with phases 4–5. The manual signature check against real R2 (§16) is still owed.
 
 ## Context
 

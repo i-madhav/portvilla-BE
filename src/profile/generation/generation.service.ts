@@ -3,12 +3,14 @@ import { ConfigService } from '@nestjs/config';
 
 import { LlmService } from '../../llm/llm.service';
 import type { IJsonCompleter } from '../../llm/llm.service';
+import type { LlmCompleteOptions, LlmUsage } from '../../llm/i-llm-provider';
 import { platformLlmSettings } from '../../llm/platform-llm.config';
 import type { AiSettingsSection } from '../domain/profile.interface';
 import type { IProfileRecord } from '../domain/profile.interface';
 
 import { assembleDraft, parseFactSheet } from './assemble';
 import { buildBriefPrompt } from './prompts/brief.prompt';
+import type { Prompt } from './prompts/brief.prompt';
 import {
   buildSectionPrompt,
   buildSharedPrefix,
@@ -29,6 +31,20 @@ import type {
  * here, because a missing section is a warning and the other nine still ship.
  */
 export class GenerationFailedError extends Error {}
+
+/**
+ * Raised when the fact-sheet pass ran out of the generation's time budget.
+ * The controller turns it into `504 GENERATION_TIMEOUT`. Kept apart from
+ * `GenerationFailedError` because the advice differs: a timeout is worth
+ * retrying as it is, a failure may not be.
+ */
+export class GenerationTimeoutError extends Error {}
+
+/** One Pass B call, prompt built, before it is sent. */
+interface PlannedCall {
+  section: GeneratedSection;
+  prompt: Prompt;
+}
 
 /**
  * Description → a profile draft, in three passes.
@@ -53,6 +69,14 @@ export class GenerationService {
   private static readonly BRIEF_MAX_TOKENS = 8192;
   /** Pass B writes one section. Works, with its stages, is the largest. */
   private static readonly SECTION_MAX_TOKENS = 4096;
+  /**
+   * Wall-clock for the whole workflow, retries included. Under the FE's
+   * 240 s request timeout (`GENERATION_TIMEOUT_MS`) with room for assembly
+   * and the response, so the owner is told "ran out of time" by the server
+   * rather than by a dropped connection. Every call shares the one deadline:
+   * a slow fact sheet leaves the sections less time, never more.
+   */
+  static readonly BUDGET_MS = 200_000;
 
   constructor(
     @Inject(LlmService) private readonly llm: IJsonCompleter,
@@ -67,6 +91,8 @@ export class GenerationService {
     const usage: GenerationUsage = {
       inputTokens: 0,
       outputTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: 0,
       calls: 0,
       durationMs: 0,
     };
@@ -78,12 +104,14 @@ export class GenerationService {
       );
     }
 
+    const deadline = AbortSignal.timeout(GenerationService.BUDGET_MS);
     const vocabulary = vocabularyFor(record.identity.entityType);
     const factSheet = await this.brief(
       description,
       record.identity.name,
       vocabulary,
       settings,
+      deadline,
       usage,
     );
 
@@ -101,6 +129,7 @@ export class GenerationService {
       record.identity.name,
       vocabulary,
       settings,
+      deadline,
       usage,
     );
 
@@ -110,7 +139,7 @@ export class GenerationService {
     this.logger.log(
       `generate: draft assembled (generated=${
         Object.values(sections).filter((s) => s === 'generated').length
-      }, warnings=${warnings.length}, calls=${usage.calls}, in=${usage.inputTokens}, out=${usage.outputTokens}, ms=${usage.durationMs})`,
+      }, warnings=${warnings.length}, calls=${usage.calls}, in=${usage.inputTokens}, cacheRead=${usage.cacheReadInputTokens}, cacheWrite=${usage.cacheWriteInputTokens}, out=${usage.outputTokens}, ms=${usage.durationMs})`,
     );
 
     return { draft, sections, warnings, usage };
@@ -120,12 +149,16 @@ export class GenerationService {
    * Pass A. The only call whose failure fails the request: with no fact sheet
    * every generator would be free to invent, which is the one outcome worse
    * than no draft at all.
+   *
+   * Not cached: its prompt is read once per generation, so marking it would
+   * pay for a cache write nothing reads.
    */
   private async brief(
     description: string,
     entityName: string,
     vocabulary: ReturnType<typeof vocabularyFor>,
     settings: AiSettingsSection,
+    deadline: AbortSignal,
     usage: GenerationUsage,
   ): Promise<FactSheet> {
     const { system, user } = buildBriefPrompt(
@@ -137,9 +170,15 @@ export class GenerationService {
     const completion = await this.llm.completeJson(system, user, settings, {
       maxTokens: GenerationService.BRIEF_MAX_TOKENS,
       effort: 'high',
+      signal: deadline,
     });
     this.record(usage, completion.usage);
 
+    if (completion.failure === 'timeout') {
+      throw new GenerationTimeoutError(
+        'Reading your description took longer than it should. Try again in a moment.',
+      );
+    }
     const factSheet = parseFactSheet(completion.value);
     if (!factSheet) {
       throw new GenerationFailedError(
@@ -151,9 +190,14 @@ export class GenerationService {
 
   /**
    * Pass B. `allSettled`, not `all`: one section throwing must not take the
-   * other nine with it. The prefix is built once and shared by every call, both
-   * because it is most of the tokens and because an identical prefix is what a
-   * provider can cache.
+   * other nine with it.
+   *
+   * Every call sends the same system prompt — the description and the fact
+   * sheet — byte for byte, marked cacheable. A cache entry is readable only
+   * once the call writing it has started answering, so calls fired together
+   * would all miss; one warm call (prefill, no output) goes first and the
+   * fan-out reads what it wrote. With a single planned section there is
+   * nothing to share, and the warm would be a write nobody reads.
    */
   private async fanOut(
     planned: GeneratedSection[],
@@ -162,6 +206,7 @@ export class GenerationService {
     entityName: string,
     vocabulary: ReturnType<typeof vocabularyFor>,
     settings: AiSettingsSection,
+    deadline: AbortSignal,
     usage: GenerationUsage,
   ): Promise<SectionResult[]> {
     const sharedPrefix = buildSharedPrefix(
@@ -170,46 +215,61 @@ export class GenerationService {
       vocabulary,
       entityName,
     );
+    const calls: PlannedCall[] = planned.map((section) => ({
+      section,
+      prompt: buildSectionPrompt(
+        section,
+        sharedPrefix,
+        vocabulary,
+        factSheet.sections[section].reason,
+      ),
+    }));
+    // The warm must match the real calls in everything the provider caches
+    // on, so both take their options from this one object.
+    const options: LlmCompleteOptions = {
+      maxTokens: GenerationService.SECTION_MAX_TOKENS,
+      effort: 'medium',
+      cacheSystemPrompt: true,
+      signal: deadline,
+    };
+
+    if (calls.length > 1) {
+      const warmed = await this.llm.warmPrefix(
+        sharedPrefix,
+        calls[0].prompt.user,
+        settings,
+        options,
+      );
+      if (warmed) this.record(usage, warmed);
+    }
 
     const settled = await Promise.allSettled(
-      planned.map(async (section) => {
-        const { system, user } = buildSectionPrompt(
-          section,
-          sharedPrefix,
-          vocabulary,
-          factSheet.sections[section].reason,
-        );
-        const completion = await this.llm.completeJson(system, user, settings, {
-          maxTokens: GenerationService.SECTION_MAX_TOKENS,
-          effort: 'medium',
-        });
-        return { section, completion };
-      }),
+      calls.map(({ prompt }) =>
+        this.llm.completeJson(prompt.system, prompt.user, settings, options),
+      ),
     );
 
     return settled.map((outcome, index): SectionResult => {
+      const { section } = calls[index];
       if (outcome.status === 'rejected') {
-        this.logger.warn(
-          `fanOut: ${planned[index]} rejected — ${String(outcome.reason)}`,
-        );
-        return { section: planned[index], value: null };
+        this.logger.warn(`fanOut: ${section} rejected — ${String(outcome.reason)}`);
+        return { section, value: null };
       }
-      this.record(usage, outcome.value.completion.usage);
-      return {
-        section: outcome.value.section,
-        value: outcome.value.completion.value,
-      };
+      this.record(usage, outcome.value.usage);
+      if (outcome.value.failure) {
+        this.logger.warn(`fanOut: ${section} ${outcome.value.failure}`);
+      }
+      return { section, value: outcome.value.value };
     });
   }
 
   /** Counts only — never a prompt, never a response, never a key. */
-  private record(
-    usage: GenerationUsage,
-    counts: { inputTokens: number; outputTokens: number } | null,
-  ): void {
+  private record(usage: GenerationUsage, counts: LlmUsage | null): void {
     usage.calls += 1;
     if (!counts) return;
     usage.inputTokens += counts.inputTokens;
     usage.outputTokens += counts.outputTokens;
+    usage.cacheReadInputTokens += counts.cacheReadInputTokens;
+    usage.cacheWriteInputTokens += counts.cacheWriteInputTokens;
   }
 }

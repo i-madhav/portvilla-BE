@@ -199,6 +199,37 @@ export interface StageEntry {
   highlights: string[];
 }
 
+/**
+ * A region the owner drew on a screenshot, so the agent can point at it
+ * ("the export button") the way a presenter would.
+ *
+ * `x`, `y`, `w`, `h` are percentages of the whole image, so a region stays put
+ * at any rendered size. `note` is the owner's own line about the region and the
+ * only thing the agent may say about it; like a talk track it goes to the agent
+ * and never onto a slide payload.
+ */
+export interface HotspotEntry {
+  key: string;
+  label: string;
+  note: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface ScreenshotEntry {
+  /**
+   * Minted by the repository on write, like a stage's. Absent only on a
+   * screenshot stored before screenshots were keyed (2026-09-27): it still
+   * renders, but nothing can point at it until the owner next saves its work.
+   */
+  key?: string;
+  url: string;
+  caption: string | null;
+  hotspots: HotspotEntry[];
+}
+
 export interface WorkEntry {
   key: string;
   type: WorkType;
@@ -208,7 +239,7 @@ export interface WorkEntry {
   url: string | null;
   repoUrl: string | null;
   coverImage: string | null;
-  screenshots: { url: string; caption: string | null }[];
+  screenshots: ScreenshotEntry[];
   technologies: string[];
   tags: string[];
   status: WorkStatus;
@@ -225,13 +256,22 @@ export interface WorkEntry {
   stages: StageEntry[];
 }
 
+/** A screenshot as it arrives from a client: it and its hotspots may be unkeyed. */
+export type ScreenshotEntryInput = Omit<ScreenshotEntry, 'hotspots'> & {
+  hotspots: EntryInput<HotspotEntry>[];
+};
+
 /**
- * A work as it arrives from a client: both the work and each of its stages may
- * be missing a key. `EntryInput<WorkEntry>` alone would not cover the stages,
- * since they are keyed one level down.
+ * A work as it arrives from a client: the work, each of its stages, and each of
+ * its screenshots and their hotspots may be missing a key.
+ * `EntryInput<WorkEntry>` alone would not cover the nested arrays, since they
+ * are keyed one level down.
  */
-export type WorkEntryInput = EntryInput<Omit<WorkEntry, 'stages'>> & {
+export type WorkEntryInput = EntryInput<
+  Omit<WorkEntry, 'stages' | 'screenshots'>
+> & {
   stages: EntryInput<StageEntry>[];
+  screenshots: ScreenshotEntryInput[];
 };
 
 export interface TimelineEntry {

@@ -11,9 +11,11 @@ import {
   WorkType,
   type CapabilityEntry,
   type ContentEntry,
+  type HotspotEntry,
   type IProfileRecord,
   type MetricEntry,
   type OfferingEntry,
+  type ScreenshotEntry,
   type StageEntry,
   type TeamMemberEntry,
   type TestimonialEntry,
@@ -232,14 +234,50 @@ function aContentItem(overrides: Partial<ContentEntry> = {}): ContentEntry {
   };
 }
 
+function aScreenshot(
+  overrides: Partial<ScreenshotEntry> = {},
+): ScreenshotEntry {
+  return {
+    key: 'shot0001',
+    url: 'https://example.com/board.png',
+    caption: 'The board',
+    hotspots: [],
+    ...overrides,
+  };
+}
+
+/**
+ * The note is a marker rather than prose: several tests below assert it never
+ * reaches a payload, and a phrase that also appeared elsewhere would prove
+ * nothing.
+ */
+function aHotspot(overrides: Partial<HotspotEntry> = {}): HotspotEntry {
+  return {
+    key: 'hot00001',
+    label: 'Export button',
+    note: 'AGENT-ONLY-NOTE: exports the board as a CSV.',
+    x: 80,
+    y: 4,
+    w: 12,
+    h: 6,
+    ...overrides,
+  };
+}
+
 /**
  * A profile with **every** section populated — the fixture the order and
  * allowlist tests need, since both are about what the whole catalog does.
- * `media` is populated too, and deliberately: it must still produce no slide.
+ * `media` carries one image and one video: only the image may be projected.
  */
 function aFullProfile(entityType = EntityType.INDIVIDUAL): IProfileRecord {
   const record = aProfile({
-    works: [aWork({ key: 'work0001', stages: [aStage({ key: 'stage001' })] })],
+    works: [
+      aWork({
+        key: 'work0001',
+        stages: [aStage({ key: 'stage001' })],
+        screenshots: [aScreenshot({ hotspots: [aHotspot()] })],
+      }),
+    ],
     capabilities: [aCapability()],
     timeline: [aTimelineEntry()],
     offerings: [anOffering()],
@@ -253,6 +291,13 @@ function aFullProfile(entityType = EntityType.INDIVIDUAL): IProfileRecord {
         url: 'https://example.com/shot.png',
         caption: null,
         type: 'image',
+        category: null,
+      },
+      {
+        key: 'eeeeeeee',
+        url: 'https://example.com/reel.mp4',
+        caption: 'Reel',
+        type: 'video',
         category: null,
       },
     ],
@@ -588,6 +633,58 @@ describe('projectSlides', () => {
     });
   });
 
+  describe('the media slide', () => {
+    const image = (key: string, caption: string | null) => ({
+      key,
+      url: `https://cdn.example.com/i/${key}/l`,
+      caption,
+      type: 'image' as const,
+      category: null,
+    });
+
+    it('names the captioned images and counts all of them', () => {
+      const slide = slideById(
+        aProfile({
+          media: [
+            image('aaaaaaaa', 'Berlin offsite'),
+            image('bbbbbbbb', null),
+            image('cccccccc', 'Launch night'),
+          ],
+        }),
+        'media',
+      );
+
+      expect(slide.talkTrack.summary).toBe(
+        '3 images, including Berlin offsite and Launch night.',
+      );
+    });
+
+    it('says only the count when nothing is captioned', () => {
+      const slide = slideById(
+        aProfile({ media: [image('aaaaaaaa', null)] }),
+        'media',
+      );
+      expect(slide.talkTrack.summary).toBe('1 image.');
+    });
+
+    it('yields no slide for a section of videos alone', () => {
+      const ids = idsOf(
+        aProfile({
+          media: [
+            {
+              key: 'aaaaaaaa',
+              url: 'https://example.com/reel.mp4',
+              caption: null,
+              type: 'video',
+              category: null,
+            },
+          ],
+        }),
+      );
+      expect(ids).not.toContain('media');
+    });
+  });
+
   describe('catalog order', () => {
     it('opens on identity and closes on contact, whatever the entity', () => {
       for (const entityType of Object.values(EntityType)) {
@@ -606,6 +703,7 @@ describe('projectSlides', () => {
         'timeline',
         'testimonials',
         'content',
+        'media',
         'metrics',
         'offerings',
         'team',
@@ -619,6 +717,7 @@ describe('projectSlides', () => {
         'offerings',
         'work:work0001',
         'work:work0001:stage:stage001',
+        'media',
         'metrics',
         'testimonials',
         'team',
@@ -641,6 +740,7 @@ describe('projectSlides', () => {
         'capabilities',
         'work:work0001',
         'work:work0001:stage:stage001',
+        'media',
         'metrics',
         'offerings',
         'testimonials',
@@ -671,17 +771,26 @@ describe('projectSlides', () => {
 
   describe('a full profile', () => {
     it('projects one slide for every section that has a template', () => {
-      // Eleven sections, ten of them projectable: identity, works (+1 stage),
+      // Every section is projectable: identity, works (+1 stage),
       // capabilities, timeline, offerings, metrics, testimonials, team,
-      // content, contact.
-      expect(idsOf(aFullProfile())).toHaveLength(11);
+      // content, media, contact.
+      expect(idsOf(aFullProfile())).toHaveLength(12);
     });
 
-    it('projects no slide for media, which has no template yet', () => {
-      const ids = idsOf(aFullProfile());
-      expect(ids).not.toContain('media');
+    it('projects the images of media and leaves the videos out', () => {
+      const slide = slideById(aFullProfile(), 'media');
+      if (slide.template !== SlideTemplate.MEDIA) throw new Error('not media');
+
+      expect(slide.payload.items).toEqual([
+        {
+          key: 'dddddddd',
+          url: 'https://example.com/shot.png',
+          caption: null,
+          category: null,
+        },
+      ]);
       expect(JSON.stringify(projectSlides(aFullProfile()))).not.toContain(
-        'shot.png',
+        'reel.mp4',
       );
     });
 
@@ -749,6 +858,56 @@ describe('projectSlides', () => {
         'type',
         'url',
       ]);
+      expect(keysByTemplate[SlideTemplate.MEDIA]).toEqual([
+        'caption',
+        'category',
+        'key',
+        'url',
+      ]);
+    });
+
+    it('draws a hotspot from geometry and a label, and nothing more', () => {
+      const slide = slideById(aFullProfile(), 'work:work0001');
+      if (slide.template !== SlideTemplate.WORK) throw new Error('not work');
+
+      const [shot] = slide.payload.screenshots;
+      expect(Object.keys(shot).sort()).toEqual([
+        'caption',
+        'hotspots',
+        'key',
+        'url',
+      ]);
+      expect(Object.keys(shot.hotspots[0]).sort()).toEqual([
+        'h',
+        'key',
+        'label',
+        'w',
+        'x',
+        'y',
+      ]);
+    });
+
+    it('carries no note anywhere inside any payload', () => {
+      // Walks every value, so a note nested at any depth, under any template,
+      // fails this — not only the hotspot the fixture happens to put it on.
+      const noteKeys = (value: unknown): string[] => {
+        if (Array.isArray(value)) return value.flatMap(noteKeys);
+        if (typeof value !== 'object' || value === null) return [];
+        return Object.entries(value).flatMap(([key, child]) => [
+          ...(key === 'note' ? [key] : []),
+          ...noteKeys(child),
+        ]);
+      };
+      const slides = projectSlides(aFullProfile());
+
+      for (const slide of slides) {
+        expect(noteKeys(slide.payload)).toEqual([]);
+        expect(JSON.stringify(slide.payload)).not.toContain('AGENT-ONLY-NOTE');
+      }
+      // …while the agent does get it, beside the payload.
+      expect(JSON.stringify(slides.map((s) => s.focus))).toContain(
+        'AGENT-ONLY-NOTE',
+      );
     });
 
     it('still leaks no secret once every section is populated', () => {
@@ -922,10 +1081,10 @@ describe('projectSlides', () => {
       expect(projectSlides(oversized)).toEqual(projectSlides(oversized));
     });
 
-    it('leaves room for all eight single-slide sections, not just two', () => {
-      // The reason MAX_FIXED_SLIDES is 9 and not 4: with every section filled,
+    it('leaves room for all nine single-slide sections, not just two', () => {
+      // The reason MAX_FIXED_SLIDES is 10 and not 4: with every section filled,
       // the works budget has to stop short by enough that identity and the
-      // eight section slides still fit under MAX_SLIDES.
+      // nine section slides still fit under MAX_SLIDES.
       const full = aFullProfile();
       full.works = oversized.works;
 
@@ -941,10 +1100,140 @@ describe('projectSlides', () => {
         'testimonials',
         'team',
         'content',
+        'media',
         'contact',
       ]) {
         expect(ids).toContain(section);
       }
+    });
+  });
+
+  describe('focus menus', () => {
+    const focusOf = (record: IProfileRecord, id: string) =>
+      slideById(record, id).focus;
+
+    it('names each capability by its key', () => {
+      const record = aProfile({
+        capabilities: [
+          aCapability({ key: 'react001', name: 'React' }),
+          aCapability({ key: 'nest0001', name: 'NestJS' }),
+        ],
+      });
+
+      expect(focusOf(record, 'capabilities')).toEqual([
+        { key: 'react001', label: 'React', note: null },
+        { key: 'nest0001', label: 'NestJS', note: null },
+      ]);
+    });
+
+    it('names each timeline entry by its title', () => {
+      const record = aProfile({
+        timeline: [
+          aTimelineEntry({ key: 'job00001', label: 'Staff Engineer' }),
+        ],
+      });
+
+      expect(focusOf(record, 'timeline')).toEqual([
+        { key: 'job00001', label: 'Staff Engineer', note: null },
+      ]);
+    });
+
+    it("lists a work's screenshots, each followed by its hotspots", () => {
+      const record = aProfile({
+        works: [
+          aWork({
+            key: 'work0001',
+            screenshots: [
+              aScreenshot({
+                key: 'shot0001',
+                caption: 'The board',
+                hotspots: [
+                  aHotspot({ key: 'hot00001', label: 'Export', note: 'CSV.' }),
+                  aHotspot({ key: 'hot00002', label: 'Filter', note: 'Tags.' }),
+                ],
+              }),
+              aScreenshot({ key: 'shot0002', caption: 'Settings' }),
+            ],
+          }),
+        ],
+      });
+
+      expect(focusOf(record, 'work:work0001')).toEqual([
+        { key: 'shot0001', label: 'The board', note: null },
+        { key: 'shot0001.hot00001', label: 'Export', note: 'CSV.' },
+        { key: 'shot0001.hot00002', label: 'Filter', note: 'Tags.' },
+        { key: 'shot0002', label: 'Settings', note: null },
+      ]);
+    });
+
+    it('labels an uncaptioned screenshot by its place among them', () => {
+      const record = aProfile({
+        works: [
+          aWork({
+            key: 'work0001',
+            screenshots: [
+              aScreenshot({ key: 'shot0001', caption: 'The board' }),
+              aScreenshot({ key: 'shot0002', caption: null }),
+              aScreenshot({ key: 'shot0003', caption: '   ' }),
+            ],
+          }),
+        ],
+      });
+
+      expect(focusOf(record, 'work:work0001').map((f) => f.label)).toEqual([
+        'The board',
+        'Screenshot 2',
+        'Screenshot 3',
+      ]);
+    });
+
+    it('shows a legacy unkeyed screenshot but offers nothing to point at', () => {
+      // Stored before screenshots were keyed, and so loaded without a key.
+      const legacy = aScreenshot({ key: undefined, caption: 'Old' });
+      const record = aProfile({
+        works: [
+          aWork({
+            key: 'work0001',
+            screenshots: [
+              legacy,
+              aScreenshot({ key: 'shot0002', caption: 'New' }),
+            ],
+          }),
+        ],
+      });
+
+      const slide = slideById(record, 'work:work0001');
+      if (slide.template !== SlideTemplate.WORK) throw new Error('not work');
+      expect(slide.payload.screenshots.map((s) => s.key)).toEqual([
+        null,
+        'shot0002',
+      ]);
+      expect(slide.payload.screenshots[0].hotspots).toEqual([]);
+      // The fallback label still counts it: "Screenshot N" is its place on screen.
+      expect(slide.focus).toEqual([
+        { key: 'shot0002', label: 'New', note: null },
+      ]);
+    });
+
+    it('is empty for a work with no screenshots, and every other template', () => {
+      const slides = projectSlides(aFullProfile());
+      const withMenus = [
+        SlideTemplate.CAPABILITIES,
+        SlideTemplate.TIMELINE,
+        SlideTemplate.WORK,
+      ];
+
+      for (const slide of slides) {
+        if (!withMenus.includes(slide.template)) {
+          expect(slide.focus).toEqual([]);
+        }
+      }
+      expect(
+        focusOf(
+          aProfile({ works: [aWork({ key: 'work0001' })] }),
+          'work:work0001',
+        ),
+      ).toEqual([]);
     });
   });
 

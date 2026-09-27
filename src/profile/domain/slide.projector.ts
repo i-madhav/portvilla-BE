@@ -1,8 +1,16 @@
 import { STAGE_SUMMARY_MAX_LENGTH } from './section-limits';
-import { SlideId, SlideTemplate, type Slide, type TalkTrack } from './slide';
+import {
+  FocusKey,
+  SlideId,
+  SlideTemplate,
+  type FocusTarget,
+  type Slide,
+  type TalkTrack,
+} from './slide';
 import { EntityType } from './profile.interface';
 import type {
   IProfileRecord,
+  ScreenshotEntry,
   StageEntry,
   WorkEntry,
 } from './profile.interface';
@@ -19,6 +27,10 @@ import type {
  * `social.email` / `social.phone`. Every payload is built field by field for
  * that reason — a field added to the profile later stays out of the agent's
  * view until someone deliberately puts it in.
+ *
+ * **Focus menus.** Each slide also lists what on it the agent can point at
+ * (`Slide.focus`). A menu may carry an owner's hotspot `note`; a payload never
+ * does, because the payload goes to the screen and the note is the agent's line.
  */
 
 /**
@@ -31,10 +43,10 @@ import type {
 export const MAX_SLIDES = 120;
 
 /**
- * Slides that are not works: identity, plus one for each of the eight sections
+ * Slides that are not works: identity, plus one for each of the nine sections
  * that project to a single slide. Works get everything left of the budget.
  */
-const MAX_FIXED_SLIDES = 9;
+const MAX_FIXED_SLIDES = 10;
 
 /**
  * The sections that follow identity, in the order they are told.
@@ -51,6 +63,7 @@ type OrderedSection =
   | 'testimonials'
   | 'team'
   | 'content'
+  | 'media'
   | 'contact';
 
 /**
@@ -65,10 +78,15 @@ type OrderedSection =
  * different entities: a person leads with what they have built, a company with
  * what it sells, a product with what it does. An organization tells a company's
  * story, so it shares that row rather than defining a third one.
+ *
+ * `media` follows works for companies and products — a gallery there is the
+ * works' evidence. A person's works already carry their own covers, so their
+ * gallery sits with the rest of their published material, after content.
  */
 const COMPANY_ORDER: readonly OrderedSection[] = [
   'offerings',
   'works',
+  'media',
   'metrics',
   'testimonials',
   'team',
@@ -85,6 +103,7 @@ const SECTION_ORDER: Readonly<Record<EntityType, readonly OrderedSection[]>> = {
     'timeline',
     'testimonials',
     'content',
+    'media',
     'metrics',
     'offerings',
     'team',
@@ -95,6 +114,7 @@ const SECTION_ORDER: Readonly<Record<EntityType, readonly OrderedSection[]>> = {
   [EntityType.PRODUCT]: [
     'capabilities',
     'works',
+    'media',
     'metrics',
     'offerings',
     'testimonials',
@@ -128,6 +148,7 @@ const SECTION_SLIDES: Readonly<
   testimonials: testimonialsSlide,
   team: teamSlide,
   content: contentSlide,
+  media: mediaSlide,
   contact: contactSlide,
 };
 
@@ -163,6 +184,7 @@ function identitySlide(record: IProfileRecord): Slide {
       availability: id.availability,
     },
     talkTrack: talkTrack(id.tagline ?? id.bio ?? id.name, id.about ?? id.bio),
+    focus: [],
   };
 }
 
@@ -209,8 +231,17 @@ function workBlock(work: WorkEntry): Slide[] {
       repoUrl: work.repoUrl,
       coverImage: work.coverImage,
       screenshots: work.screenshots.map((s) => ({
+        key: s.key ?? null,
         url: s.url,
         caption: s.caption,
+        hotspots: s.hotspots.map((h) => ({
+          key: h.key,
+          label: h.label,
+          x: h.x,
+          y: h.y,
+          w: h.w,
+          h: h.h,
+        })),
       })),
       technologies: [...work.technologies],
       tags: [...work.tags],
@@ -226,12 +257,38 @@ function workBlock(work: WorkEntry): Slide[] {
       stageCount: stages.length,
     },
     talkTrack: talkTrack(work.tagline ?? work.description, work.description),
+    focus: screenshotFocus(work.screenshots),
   };
 
   return [
     workSlide,
     ...stages.map((stage, i) => stageSlide(work, stage, i, stages.length)),
   ];
+}
+
+/**
+ * Each screenshot, then each region the owner drew on it. A screenshot stored
+ * before screenshots were keyed has nothing to be named by, so it and its
+ * hotspots are left out until the owner next saves the work.
+ */
+function screenshotFocus(screenshots: ScreenshotEntry[]): FocusTarget[] {
+  return screenshots.flatMap((shot, i) => {
+    const shotKey = shot.key;
+    if (!shotKey) return [];
+
+    return [
+      {
+        key: shotKey,
+        label: shot.caption?.trim() || `Screenshot ${i + 1}`,
+        note: null,
+      },
+      ...shot.hotspots.map((h) => ({
+        key: FocusKey.hotspot(shotKey, h.key),
+        label: h.label,
+        note: h.note,
+      })),
+    ];
+  });
 }
 
 function stageSlide(
@@ -259,6 +316,7 @@ function stageSlide(
     // The only talk track the user authored directly, rather than one derived
     // from prose written for the page. Passed through as written.
     talkTrack: { summary: stage.summary, detail: stage.detail },
+    focus: [],
   };
 }
 
@@ -296,6 +354,7 @@ function capabilitiesSlide(record: IProfileRecord): Slide[] {
         ),
         null,
       ),
+      focus: items.map((c) => ({ key: c.key, label: c.name, note: null })),
     },
   ];
 }
@@ -330,6 +389,7 @@ function timelineSlide(record: IProfileRecord): Slide[] {
         ),
         null,
       ),
+      focus: items.map((t) => ({ key: t.key, label: t.label, note: null })),
     },
   ];
 }
@@ -363,6 +423,7 @@ function offeringsSlide(record: IProfileRecord): Slide[] {
         ),
         null,
       ),
+      focus: [],
     },
   ];
 }
@@ -393,6 +454,7 @@ function metricsSlide(record: IProfileRecord): Slide[] {
         ),
         null,
       ),
+      focus: [],
     },
   ];
 }
@@ -428,6 +490,7 @@ function testimonialsSlide(record: IProfileRecord): Slide[] {
         ),
         null,
       ),
+      focus: [],
     },
   ];
 }
@@ -458,6 +521,7 @@ function teamSlide(record: IProfileRecord): Slide[] {
         ),
         null,
       ),
+      focus: [],
     },
   ];
 }
@@ -491,6 +555,47 @@ function contentSlide(record: IProfileRecord): Slide[] {
         ),
         null,
       ),
+      focus: [],
+    },
+  ];
+}
+
+/**
+ * Images only. A `video` entry is a URL with no player on the slide and no
+ * upload kind behind it, so it stays something the agent can mention but not
+ * show; a section of nothing but videos yields no slide.
+ */
+function mediaSlide(record: IProfileRecord): Slide[] {
+  const items = record.media.filter((m) => m.type === 'image');
+  if (items.length === 0) return [];
+
+  // Captions are optional. Naming only the captioned ones keeps the line from
+  // reading "including , and"; with none to name, the count says enough.
+  const named = items
+    .map((m) => m.caption?.trim())
+    .filter((caption): caption is string => Boolean(caption));
+  const noun = items.length === 1 ? 'image' : 'images';
+
+  return [
+    {
+      id: SlideId.media,
+      template: SlideTemplate.MEDIA,
+      title: 'Gallery',
+      payload: {
+        items: items.map((m) => ({
+          key: m.key,
+          url: m.url,
+          caption: m.caption,
+          category: m.category,
+        })),
+      },
+      talkTrack: talkTrack(
+        named.length > 0
+          ? `${items.length} ${noun}, including ${joinNames(named)}.`
+          : `${items.length} ${noun}.`,
+        null,
+      ),
+      focus: [],
     },
   ];
 }
@@ -524,6 +629,7 @@ function contactSlide(record: IProfileRecord): Slide[] {
         `You can reach them on ${joinNames(channels)}.`,
         null,
       ),
+      focus: [],
     },
   ];
 }

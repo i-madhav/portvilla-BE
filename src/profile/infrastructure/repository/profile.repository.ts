@@ -6,7 +6,11 @@ import {
   IProfileRepository,
   CreateProfileData,
 } from '../../domain/profile-repository.interface';
-import { KEYED_ARRAY_SECTIONS, withUniqueKeys } from '../../domain/entry-key';
+import {
+  KEYED_ARRAY_SECTIONS,
+  withUniqueKeys,
+  withWorkChildKeys,
+} from '../../domain/entry-key';
 import type { KeyableEntry } from '../../domain/entry-key';
 import type {
   IProfile,
@@ -43,6 +47,7 @@ export class ProfileRepository implements IProfileRepository {
       protectedPassword: data.protectedPassword,
       identity: data.identity,
       social: data.social,
+      brief: data.brief,
       aiSettings: data.aiSettings,
     });
     return this.toRecord(doc);
@@ -135,12 +140,10 @@ export class ProfileRepository implements IProfileRepository {
       }
     }
 
-    // `works` is the only section holding keyed entries of its own.
+    // `works` is the only section holding keyed entries of its own: stages,
+    // screenshots, and the hotspots on those screenshots.
     if (Array.isArray(keyed.works)) {
-      keyed.works = (keyed.works as WorkEntryInput[]).map((work) => ({
-        ...work,
-        stages: withUniqueKeys(work.stages ?? []),
-      }));
+      keyed.works = (keyed.works as WorkEntryInput[]).map(withWorkChildKeys);
     }
 
     return keyed;

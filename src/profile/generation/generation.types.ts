@@ -91,9 +91,21 @@ export interface DraftWarning {
  */
 export type SectionStatus = 'generated' | 'empty' | 'failed';
 
+/**
+ * What one generation cost, summed over its calls. Counts only — never a
+ * prompt, a response or a key.
+ *
+ * The three input counts are disjoint, as the provider bills them:
+ * `inputTokens` at the full rate, `cacheReadInputTokens` at about a tenth of it
+ * (the fan-out reading the shared prefix), `cacheWriteInputTokens` at a premium
+ * (the one warm call writing it). `calls` includes that warm call: it is a
+ * request, and it is billed.
+ */
 export interface GenerationUsage {
   inputTokens: number;
   outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheWriteInputTokens: number;
   calls: number;
   durationMs: number;
 }

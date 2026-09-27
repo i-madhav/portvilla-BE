@@ -125,8 +125,13 @@ export class AgentContextResponseDto {
     items: { type: 'object' },
     description:
       'The ordered slide catalog. Each slide is `{ id, template, title, payload, ' +
-      'talkTrack }`; `payload` is discriminated by `template`. Navigation is the ' +
-      'array order — "next" is index + 1. Capped at MAX_SLIDES (120).',
+      'talkTrack, focus }`; `payload` is discriminated by `template`. Navigation ' +
+      'is the array order — "next" is index + 1. Capped at MAX_SLIDES (120). ' +
+      '`focus` is `{ key, label, note }[]`, what on the slide the agent can ' +
+      'point at: capability and timeline entry keys, and on a work its ' +
+      'screenshot keys and `shotKey.hotspotKey`; `[]` for every other template. ' +
+      '`note` (a hotspot’s authored line) is agent-side only, like `talkTrack`, ' +
+      'and never appears inside `payload`.',
   })
   slides!: Slide[];
 
